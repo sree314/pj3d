@@ -1,0 +1,59 @@
+#!/usr/bin/env python3
+# -*- mode: python3 -*-
+
+import argparse
+import shutil
+import os
+import sys
+from plater3d.appimage import AppImage2
+from plater3d.slicers.cura5 import CURA5Config
+import logging
+from collections import namedtuple
+
+# temporary
+part = namedtuple('part', 'filename')
+
+if __name__ == "__main__":
+    p = argparse.ArgumentParser(description="Plate a set of STL models")
+    p.add_argument("--slicer-binary", help="Slicer binary")
+    p.add_argument("--slicer", choices=['cura5'], default='cura5', help="Choose slicer type")
+    p.add_argument("--appimage", action="store_true", help="Slicer binary is an appimage")
+    p.add_argument("stlfiles", nargs="+", help="STL files to slice")
+    p.add_argument("-o", dest="output", help="Output file")
+    p.add_argument("-s", dest="settings", action="append", help="Load slicer settings from file")
+
+    logging.basicConfig(level = logging.DEBUG )
+
+    args = p.parse_args()
+
+    if args.slicer_binary:
+        fp = shutil.which(args.slicer_binary)
+        if not fp:
+            print("ERROR: {args.slicer_binary} could not be found",
+                  file=sys.stederr)
+            sys.exit(1)
+        print(f"Using {fp} as binary", file=sys.stderr)
+        args.slicer_binary = fp
+
+    if args.slicer == "cura5":
+        slicer_config = CURA5Config(args.slicer_binary, args.appimage)
+    else:
+        raise NotImplementedError(f'Slicer {args.slicer} not implemented')
+
+    slicer_config.load_native_config()
+    stlfiles = [part(filename=f) for f in args.stlfiles]
+    #slicer_config._ai.unmount()
+
+    settings = []
+    if args.settings:
+        for s in args.settings:
+            settings.append(slicer_config.load_settings_from_file(s))
+
+    for m in slicer_config._machines.keys():
+        extruder = 0
+        ext = slicer_config._mac2extruders[m][extruder]
+        settings.append(slicer_config.load_settings_from_config(m, ext))
+        print(settings)
+        slicer_config.invoke_slicer(m, extruder, settings, stlfiles, args.output)
+        break
+
