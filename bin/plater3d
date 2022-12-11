@@ -10,22 +10,22 @@ from plater3d.slicers.cura5 import CURA5Config
 import logging
 from collections import namedtuple
 
-def parse_offset(offsetxyz):
-    v = offsetxyz.split(',')
+def parse_triple(triple, default='0.0'):
+    v = triple.split(',')
     if len(v) > 3:
-        print("ERROR: offsetxyz={offsetxyz} contains more than 3 components")
+        print("ERROR: triple={triple} contains more than 3 components")
         sys.exit(1)
 
     if len(v) < 3:
-        v.extend(['0.0' for i in range(3 - len(v))])
+        v.extend([default for i in range(3 - len(v))])
 
     for i in range(3):
-        v[i] = float(v[i]) if v[i] else 0.0
+        v[i] = float(v[i]) if v[i] else float(default)
 
     return tuple(v)
 
 # temporary
-part = namedtuple('part', 'filename offset')
+part = namedtuple('part', 'filename offset rotation')
 
 if __name__ == "__main__":
     p = argparse.ArgumentParser(description="Plate a set of STL models")
@@ -36,6 +36,7 @@ if __name__ == "__main__":
     p.add_argument("-o", dest="output", help="Output file")
     p.add_argument("-s", dest="settings", action="append", help="Load slicer settings from file")
     p.add_argument("--offxyz", dest="offxyz", action="append", help="Specify offsets for x, y, z for each object (if multiple)")
+    p.add_argument("--rotxyz", dest="rotxyz", action="append", help="Specify rotations for x, y, z for each object (if multiple)")
 
     logging.basicConfig(level = logging.DEBUG )
 
@@ -57,16 +58,30 @@ if __name__ == "__main__":
 
     slicer_config.load_native_config()
 
+    if args.offxyz is not None and (len(args.offxyz) != len(args.stlfiles)):
+        print("ERROR: --offxyz needs to match number of stlfiles")
+        sys.exit(1)
+
+    if args.rotxyz is not None and (len(args.rotxyz) != len(args.stlfiles)):
+        print("ERROR: --rotxyz needs to match number of stlfiles")
+        sys.exit(1)
+
     if len(args.stlfiles) > 1:
-        if args.offxyz is None or (len(args.offxyz) != len(args.stlfiles)):
+        if args.offxyz is None:
             print("ERROR: Multiple STL files need --offxyz for each")
             sys.exit(1)
 
+        if args.rotxyz is None:
+            print("ERROR: Multiple STL files need --rotxyz for each")
+            sys.exit(1)
+
         stlfiles = []
-        for f, off in zip(args.stlfiles, args.offxyz):
-            stlfiles.append(part(filename = f, offset = parse_offset(off)))
+        for f, off, rot in zip(args.stlfiles, args.offxyz, args.rotxyz):
+            stlfiles.append(part(filename = f, offset = parse_triple(off), rotation = parse_triple(rot)))
     else:
-        stlfiles = [part(filename=f, offset = None) for f in args.stlfiles]
+        stlfiles = [part(filename=f,
+                         offset = parse_triple(args.offxyz[0]) if args.offxyz is not None else None,
+                         rotation = parse_triple(args.rotxyz[0]) if args.rotxyz is not None else None) for f in args.stlfiles]
 
     settings = []
     if args.settings:

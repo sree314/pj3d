@@ -9,6 +9,7 @@ from urllib.parse import unquote_plus
 import itertools
 import re
 import subprocess
+from ..xform import Rotation3D
 
 # the re that matches as setting
 setting_re = re.compile(r'(?P<setting>[^ =]+)="(?P<value>[^"]*)"')
@@ -235,15 +236,21 @@ class CURA5Config:
             cmd.extend(('-s', f'{k}={v}'))
 
         for p in parts:
+            if p.rotation is not None:
+                rot = Rotation3D(*p.rotation)
+                cmd.extend(['-s', f'mesh_rotation_matrix={rot.matrix()}'])
+
             cmd.extend(['-l', p.filename])
 
             if p.offset is None:
-                # TODO: add center_object here
+                # TODO: add center_object here?
                 pass
             else:
                 for pos, off in zip(('x', 'y', 'z'), p.offset):
                     # absolute pos or offset?
                     cmd.extend(['-s', f'mesh_position_{pos}={off}'])
+
+
 
         cmd.extend(['-o', output])
 
