@@ -40,7 +40,7 @@ class FileSettings:
 
     def get_defs(self):
         return {}
-    
+
     def get_env(self):
         return {}
 
@@ -234,10 +234,18 @@ class CURA5Config:
         for k, v in kvx.items():
             cmd.extend(('-s', f'{k}={v}'))
 
-        if len(parts) > 1:
-            raise NotImplementedError(f"Multiple parts not implemented")
+        for p in parts:
+            cmd.extend(['-l', p.filename])
 
-        cmd += ['-l', parts[0].filename, '-o', output]
+            if p.offset is None:
+                # TODO: add center_object here
+                pass
+            else:
+                for pos, off in zip(('x', 'y', 'z'), p.offset):
+                    # absolute pos or offset?
+                    cmd.extend(['-s', f'mesh_position_{pos}={off}'])
+
+        cmd.extend(['-o', output])
 
         print(" ".join([f'{k}={v}' for (k, v) in env.items()]),
               " ".join(cmd))

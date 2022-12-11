@@ -10,8 +10,22 @@ from plater3d.slicers.cura5 import CURA5Config
 import logging
 from collections import namedtuple
 
+def parse_offset(offsetxyz):
+    v = offsetxyz.split(',')
+    if len(v) > 3:
+        print("ERROR: offsetxyz={offsetxyz} contains more than 3 components")
+        sys.exit(1)
+
+    if len(v) < 3:
+        v.extend(['0.0' for i in range(3 - len(v))])
+
+    for i in range(3):
+        v[i] = float(v[i]) if v[i] else 0.0
+
+    return tuple(v)
+
 # temporary
-part = namedtuple('part', 'filename')
+part = namedtuple('part', 'filename offset')
 
 if __name__ == "__main__":
     p = argparse.ArgumentParser(description="Plate a set of STL models")
@@ -21,6 +35,7 @@ if __name__ == "__main__":
     p.add_argument("stlfiles", nargs="+", help="STL files to slice")
     p.add_argument("-o", dest="output", help="Output file")
     p.add_argument("-s", dest="settings", action="append", help="Load slicer settings from file")
+    p.add_argument("--offxyz", dest="offxyz", action="append", help="Specify offsets for x, y, z for each object (if multiple)")
 
     logging.basicConfig(level = logging.DEBUG )
 
@@ -41,8 +56,17 @@ if __name__ == "__main__":
         raise NotImplementedError(f'Slicer {args.slicer} not implemented')
 
     slicer_config.load_native_config()
-    stlfiles = [part(filename=f) for f in args.stlfiles]
-    #slicer_config._ai.unmount()
+
+    if len(args.stlfiles) > 1:
+        if args.offxyz is None or (len(args.offxyz) != len(args.stlfiles)):
+            print("ERROR: Multiple STL files need --offxyz for each")
+            sys.exit(1)
+
+        stlfiles = []
+        for f, off in zip(args.stlfiles, args.offxyz):
+            stlfiles.append(part(filename = f, offset = parse_offset(off)))
+    else:
+        stlfiles = [part(filename=f, offset = None) for f in args.stlfiles]
 
     settings = []
     if args.settings:
@@ -53,7 +77,6 @@ if __name__ == "__main__":
         extruder = 0
         ext = slicer_config._mac2extruders[m][extruder]
         settings.append(slicer_config.load_settings_from_config(m, ext))
-        print(settings)
         slicer_config.invoke_slicer(m, extruder, settings, stlfiles, args.output)
         break
 
