@@ -37,6 +37,7 @@ if __name__ == "__main__":
     p.add_argument("-s", dest="settings", action="append", help="Load slicer settings from file")
     p.add_argument("--offxyz", dest="offxyz", action="append", help="Specify offsets for x, y, z for each object (if multiple)")
     p.add_argument("--rotxyz", dest="rotxyz", action="append", help="Specify rotations for x, y, z for each object (if multiple)")
+    p.add_argument("-n", dest="dry_run", action="store_true", help="Do not actually run slicer")
 
     logging.basicConfig(level = logging.DEBUG )
 
@@ -92,6 +93,6 @@ if __name__ == "__main__":
         extruder = 0
         ext = slicer_config._mac2extruders[m][extruder]
         settings.append(slicer_config.load_settings_from_config(m, ext))
-        slicer_config.invoke_slicer(m, extruder, settings, stlfiles, args.output)
+        slicer_config.invoke_slicer(m, extruder, settings, stlfiles, args.output, dry_run = args.dry_run)
         break
 
