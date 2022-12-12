@@ -257,8 +257,9 @@ class CURA5Config:
         print(" ".join([f'{k}={v}' for (k, v) in env.items()]),
               " ".join(cmd))
 
-        with open("invoke.log", "w") as f:
-            subprocess.run(cmd, stdout=f, stderr=subprocess.STDOUT, env=env, check=True)
+        if not dry_run:
+            with open("invoke.log", "w") as f:
+                subprocess.run(cmd, stdout=f, stderr=subprocess.STDOUT, env=env, check=True)
             #print(output.decode('utf-8', errors='replace'), file=f)
             #print(output)
 
