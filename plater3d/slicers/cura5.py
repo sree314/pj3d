@@ -10,6 +10,7 @@ import itertools
 import re
 import subprocess
 from ..xform import Rotation3D
+import xml.etree.ElementTree as ET
 
 # the re that matches as setting
 setting_re = re.compile(r'(?P<setting>[^ =]+)="(?P<value>[^"]*)"')
@@ -107,8 +108,65 @@ class CURA5Config:
             raise NotImplementedError(f"Non-AppImage installs not supported")
 
         self._load_all_configs(self.local_share)
+        self._load_materials(self.local_share)
         self._load_machines()
         self._load_extruders()
+
+    def _parse_material(self, mfile):
+        def get_material_metadata(mdata):
+            # get name and version only
+            name = mdata.find(f'./fdm:name', ns)
+            name_props = {}
+            for c in name:
+                name_props[c.tag[len(nsfdm):]] = c.text
+
+            ver = mdata.find(f'./fdm:version', ns).text
+            return {'name': name_props, 'version': ver}
+
+        def get_properties(pdata):
+            # get density and diameter
+
+            return {}
+
+        def get_settings(sdata):
+            # only get top-level setting
+            settings = sdata.findall(f'./fdm:setting', ns)
+
+            values = {}
+            for c in settings:
+                #TODO: make sure simply replace ' ' with '_' is okay
+                values[c.attrib['key'].replace(' ', '_')] = c.text
+
+            return values
+
+        tree = ET.parse(mfile)
+        root = tree.getroot()
+        ns = {'fdm': 'http://www.ultimaker.com/material'}
+        nsfdm = "{" + ns['fdm'] + "}"
+
+        if root.tag != f'{nsfdm}fdmmaterial':
+            raise ValueError(f"{mfile} does not appear to be an Ultimaker material file")
+
+        out = {}
+        for c in root:
+            if c.tag == f'{nsfdm}metadata':
+                out['metadata'] = get_material_metadata(c)
+            elif c.tag == f'{nsfdm}settings':
+                out['values'] = get_settings(c)
+
+        return out
+
+    def _load_materials(self, lspath):
+        if not lspath.exists(): return
+        logger.info(f'Searching for materials in {lspath}')
+
+        if not hasattr(self, '_configs'):
+            raise ValueError(f'Must be called after _load_all_configs')
+
+        self._materials = {}
+        for m in (lspath).glob('**/*.xml.fdm_material'):
+            n = unquote_plus(m.name[:-len(".xml.fdm_material")])
+            self._materials[n] = self._parse_material(m)
 
     def _load_all_configs(self, lspath):
         if not lspath.exists(): return
@@ -199,6 +257,9 @@ class CURA5Config:
         for c in self.installed_resources_root.glob(f"**/{stem}.def.json"):
             out.append(c)
 
+        for c in self.installed_resources_root.glob(f"**/{stem}.inst.cfg"):
+            out.append(c)
+
         return out
 
     def _load_kv_settings(self, settings):
@@ -209,13 +270,26 @@ class CURA5Config:
                 for k in self._configs[s].cfg["values"]:
                     #print(s, k)
                     out[k] = self._configs[s].cfg["values"][k]
+            elif s in self._materials:
+                manu = self._materials[s]["metadata"]["name"].get('brand', 'Unknown')
+                mat = self._materials[s]["metadata"]["name"].get('material', 'Unknown')
+                label = self._materials[s]["metadata"]["name"].get('label', 'Unknown')
+                logger.info(f'Using material information from {s}: {manu}/{label}/{mat}')
+                out.update(self._materials[s]['values'])
+            elif isinstance(s, Path) and s.name.endswith('.inst.cfg'):
+                cfg = configparser.ConfigParser()
+                cfg.read(s)
+                logger.info(f'Reading values from {s}')
+                for k in cfg["values"]:
+                    out[k] = cfg["values"][k]
+
             else:
                 defjsons.append(s)
                 print("!!", s)
 
         return out, defjsons
 
-    def invoke_slicer(self, machine, extruder_ndx, settings, parts, output):
+    def invoke_slicer(self, machine, extruder_ndx, settings, parts, output, dry_run = False):
         extruders = self._mac2extruders[machine]
         kvx = {'machine_extruder_count': len(extruders),
                'adhesion_extruder_nr': extruder_ndx}
@@ -273,6 +347,8 @@ class CURA5Config:
                 pass
             elif v in self._cfgfn2configs:
                 settings.append(self._cfgfn2configs[v])
+            elif v in self._materials:
+                settings.append(v)
             else:
                 print("Trying to load", v)
                 vs = self.load_from_installed(v)
