@@ -39,7 +39,7 @@ def is_equal(v1, v2):
     else:
         return v1 == v2
 
-def diff(s1, s2, s1name, s2name):
+def diff(s1, s2, s1name, s2name, show_same = False):
     s1k = set(s1.keys())
     s2k = set(s2.keys())
 
@@ -67,6 +67,7 @@ def diff(s1, s2, s1name, s2name):
             print(k, s1[k], s2[k])
             diff.append((k, s1[k][-1]))
         else:
+            if show_same: print(k, "is same")
             same.add(k)
 
     return diff
@@ -76,13 +77,14 @@ if __name__ == "__main__":
     p.add_argument("file1")
     p.add_argument("file2")
     p.add_argument("-o", dest="output", help="Output settings file with settings from file1 missing and different from file2")
+    p.add_argument("-s", dest="show_same", action="store_true", help="Show same")
 
     args = p.parse_args()
 
     f1 = load(args.file1)
     f2 = load(args.file2)
 
-    d = diff(f1, f2, args.file1, args.file2)
+    d = diff(f1, f2, args.file1, args.file2, args.show_same)
     if args.output:
         with open(args.output, "w") as f:
             for k, v in d:
