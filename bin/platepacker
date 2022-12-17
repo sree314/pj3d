@@ -1,0 +1,178 @@
+#!/usr/bin/env python3
+# -*- mode: python -*-
+
+import argparse
+import json
+import sys
+from rectpack import newPacker
+import rectpack
+
+class Part:
+    def __init__(self, stlinfo):
+        self.stlinfo = stlinfo
+        self.name = self.stlinfo['name']
+        self.dimint = [round(x) for x in stlinfo['dimensions']]
+
+    def fits(self, volxyz, borderxy, rotate = 0):
+        if rotate != 0:
+            raise NotImplementedError(f"rotation={rotate} not supported")
+
+        fits = True
+        for i, b in zip(range(3), [borderxy, borderxy, 0]):
+            fits = fits and not (self.dimint[i] + b) > volxyz[i]
+
+        return fits
+
+def parse_triple(vol):
+    vol = vol.split(',')
+
+    if len(vol) > 3:
+        print("ERROR: {vol} needs to be a triple", file=sys.stderr)
+        return None
+
+    out = []
+    for x in vol:
+        out.append(int(x))
+
+    if len(out) < 3:
+        out.extend([out[-1] for i in range(3-len(out))])
+
+    return out
+
+def get_parts(stlinfo):
+    out = {}
+    for f in stlinfo['files']:
+        out[f['name']] = Part(f)
+
+    return out
+
+def get_rects(partinfo, vol, border):
+    rects = []
+    for p in partinfo:
+        pp = partinfo[p]
+        if not pp.fits(vol, border):
+            print(f"{pp.name}: Part does not fit, dimensions={pp.dimint}, border={border}, volume={vol}, skipping.")
+        else:
+            for c in range(pp.stlinfo.get('count', 1)):
+                # arguably the 2*border is more conservative
+                # the alternative is to shrink the plate by border as well
+                rects.append(((pp.name, c), pp.dimint[0]+2*border,
+                              pp.dimint[1]+2*border, pp.dimint[2]))
+
+    return rects
+
+def group_rects(rects, height_diff = 10):
+    byz = sorted(rects, key=lambda x: x[3])
+
+    groups = []
+    lastz = byz[0][3]
+    group = []
+
+    for r in byz:
+        z = r[3]
+        if (z - lastz) > height_diff:
+            groups.append(group)
+            group = []
+            lastz = z
+
+        group.append(r)
+
+    if len(group):
+        groups.append(group)
+
+    return groups
+
+def pack(rects, volxyz, border, center_packing = True):
+    p = newPacker(sort_algo = rectpack.SORT_LSIDE, rotation=False)
+    p.add_bin(volxyz[0], volxyz[1], count=float('inf'))
+
+    for nc, x, y, _ in rects:
+        p.add_rect(x, y, nc)
+
+    p.pack()
+
+    plates = {}
+    for r in p.rect_list():
+        b,x,y,w,h,nc = r
+        if b not in plates: plates[b] = {'_bounds': [None, None, None, None]}
+        plates[b][nc] = (x+border, y+border, w-2*border, h-2*border)
+
+        plate_bounds = plates[b]['_bounds']
+
+        plate_bounds[0] = min(x, plate_bounds[0]) if plate_bounds[0] is not None else x
+        plate_bounds[1] = min(y, plate_bounds[1]) if plate_bounds[1] is not None else y
+
+        plate_bounds[2] = max(x+w, plate_bounds[2]) if plate_bounds[2] is not None else x+w
+        plate_bounds[3] = max(y+h, plate_bounds[3]) if plate_bounds[3] is not None else y+h
+
+
+    if center_packing:
+        for b in plates:
+            bounds = plates[b]['_bounds']
+            print(bounds)
+            center_x = (volxyz[0] - (bounds[2] - bounds[0])) // 2
+            center_y = (volxyz[1] - (bounds[3] - bounds[1])) // 2
+            for p in plates[b]:
+                if p == '_bounds': continue
+                x, y, w, h = plates[b][p]
+                plates[b][p] = (x + center_x, y + center_y, w, h)
+
+    return plates
+
+if __name__ == "__main__":
+    p = argparse.ArgumentParser(description="")
+    p.add_argument("stlinfo", help="STL information (JSON file)")
+    p.add_argument("-b", dest="border", type=int, help="Border (mm)", default=5)
+    p.add_argument("--volxyz", help="Printer volume", default="120")
+    p.add_argument("--max-height-diff",
+                   help="Maximum height difference between parts on the same plate", default=15, type=int)
+    p.add_argument("-o", dest="output", help="Output file")
+    p.add_argument("--no-centering", dest="centering", help="Do not center packings", action="store_false")
+
+    args = p.parse_args()
+
+    volxyz = parse_triple(args.volxyz)
+    if volxyz is None:
+        sys.exit(1)
+
+    with open(args.stlinfo, "r") as f:
+        d = json.load(fp=f)
+
+    parts = get_parts(d)
+    rects = get_rects(parts, volxyz, args.border)
+
+    plate_output = {"type": 'plate',
+                    "stlinfo": d,
+                    "border": args.border,
+                    "volxyz": volxyz,
+                    "max_height_diff": args.max_height_diff,
+                    "plates": []
+                    }
+
+    for groupno, group in enumerate(group_rects(rects, height_diff = args.max_height_diff)):
+        plates = pack(group, volxyz, args.border, center_packing = args.centering)
+        for p in plates:
+            plate = {'parts': []}
+            for obj in plates[p]:
+                if obj == '_bounds':
+                    plate["bounds"] = plates[p][obj]
+                else:
+                    objinfo = {'name': obj[0],
+                               'index': obj[1],
+                               'group': groupno,
+                               'position': list(plates[p][obj])
+                               }
+
+                    plate['parts'].append(objinfo)
+
+            plate_output["plates"].append(plate)
+
+    if args.output:
+        with open(args.output, "w") as f:
+            json.dump(plate_output, fp=f, indent='  ')
+
+        print(f"Wrote to {args.output}", file=sys.stderr)
+    else:
+        for pno, p in enumerate(plate_output["plates"]):
+            for o in p:
+                print(pno, o['name'], o['index'], o['position'])

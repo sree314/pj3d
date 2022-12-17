@@ -1,0 +1,68 @@
+#!/usr/bin/env python3
+# -*- mode: python -*-
+
+import argparse
+import trimesh
+import pyrender
+import json
+from pathlib import Path
+import sys
+import numpy as np
+
+if __name__ == "__main__":
+    p = argparse.ArgumentParser(description="Visualize packed plates")
+    p.add_argument("packing", help='JSON file containing packing info')
+    p.add_argument("-p", dest="modelpath", help="Path for object files", default=".")
+
+    args = p.parse_args()
+    root = Path(args.modelpath)
+    with open(args.packing, "r") as f:
+        packing = json.load(fp=f)
+
+    cam = pyrender.OrthographicCamera(1, 1, zfar = 200)
+    nc = pyrender.Node(camera=cam, translation=[60,60,120])
+    scene = pyrender.Scene(ambient_light=[0.02, 0.02, 0.02],
+                           bg_color=[1.0, 1.0, 1.0])
+
+    scene.add_node(nc) # this isn't correct
+
+    printer = trimesh.load("/home/sree/cura/squashfs-root/share/cura/resources/meshes/voron0_120_bed.stl")
+    printer.visual.face_colors = [128, 128, 128, 128]
+
+    pm = pyrender.Mesh.from_trimesh(printer, smooth=False)
+    npm = pyrender.Node(mesh=pm, translation=[60,60,0])
+    scene.add_node(npm)
+
+
+    stlinfo = dict([(i['name'], i) for i in packing["stlinfo"]["files"]])
+    for p in packing["plates"]:
+        d = []
+        for obj in p["parts"]:
+            fn = root / obj['name']
+            si = stlinfo[obj['name']]
+            filecoordxyz = si['min_point']
+            platecoordxy = obj['position'][0:2]
+
+            xlatcoord = [0-filecoordxyz[0]+platecoordxy[0],
+                         0-filecoordxyz[1]+platecoordxy[1],
+                         0-filecoordxyz[2]]
+
+            if not fn.exists():
+                print(f"ERROR: {fn} does not exist, use -p to specify a model path if needed", file=sys.stderr)
+                continue
+
+            mesh = trimesh.load(fn)
+            mesh.visual.face_colors = [255, 0, 0, 255]
+            m = pyrender.Mesh.from_trimesh(mesh, smooth=False)
+            nm = pyrender.Node(name=f"{obj['name']}#{obj['index']}",
+                               mesh=m,
+                               translation=xlatcoord)
+            scene.add_node(nm)
+            d.append(nm)
+
+        pyrender.Viewer(scene, use_direct_lighting=True, view_center=[60,60,0],
+                        use_perspective_cam = True) # TODO: perspective cam
+
+        for n in d:
+            scene.remove_node(n)
+
