@@ -1,0 +1,71 @@
+#!/usr/bin/env python3
+# -*- mode: python -*-
+
+import argparse
+import json
+from pathlib import Path
+import sys
+import numpy as np
+from collections import namedtuple
+import itertools
+import subprocess
+import shlex
+
+object_settings = namedtuple('object_settings', 'file position')
+
+if __name__ == "__main__":
+    p = argparse.ArgumentParser(description="Generate GCODE for packed plates")
+    p.add_argument("packing", help='JSON file containing packing info')
+    p.add_argument("-p", dest="modelpath", help="Path for object files", default=".")
+    p.add_argument("-s", dest="settings_file", help="Settings file")
+    p.add_argument("--op", dest="oprefix", metavar="PREFIX", help="Output prefix for gcode files.", default="plate")
+    args = p.parse_args()
+    root = Path(args.modelpath)
+    with open(args.packing, "r") as f:
+        packing = json.load(fp=f)
+
+    stlinfo = dict([(i['name'], i) for i in packing["stlinfo"]["files"]])
+    binpath = Path(__file__).parent
+
+    for pno, p in enumerate(packing["plates"]):
+        d = []
+        objects = []
+        for obj in p["parts"]:
+            fn = root / obj['name']
+            si = stlinfo[obj['name']]
+            filecoordxyz = si['min_point']
+            platecoordxy = obj['position'][0:2]
+
+            xlatcoord = [0-filecoordxyz[0]+platecoordxy[0],
+                         0-filecoordxyz[1]+platecoordxy[1],
+                         0-filecoordxyz[2]]
+
+            # for some reason, cura aligns 0,0 of the plate to be in the center
+            # we need to adjust for that
+
+            xlatcoord = [xlatcoord[0] - 60,
+                         xlatcoord[1] - 60,
+                         xlatcoord[2]]
+
+            if not fn.exists():
+                print(f"ERROR: {fn} does not exist, use -p to specify a model path if needed", file=sys.stderr)
+                continue
+
+            objects.append(object_settings(file=fn, position=[round(c, 2) for c in xlatcoord]))
+
+        files = []
+        pos = []
+        for o in objects:
+            # leading space is to handle -negative offsets
+            pos.append("--offxyz")
+            pos.append(" "+",".join([str(x) for x in o.position]))
+            pos.append("--rotxyz")
+            pos.append("0")
+            files.append(str(o.file))
+
+        if args.settings_file:
+            pos = pos + ["-s", args.settings_file]
+
+        cmdline = [f'{binpath/"plater3d"}', '--slicer-binary', 'CuraEngine', '--appimage', '-o',  f"{args.oprefix}.{pno}.gcode"] + pos + files
+        print(shlex.join(cmdline))
+        subprocess.run(cmdline)

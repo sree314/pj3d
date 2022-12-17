@@ -60,7 +60,7 @@ if __name__ == "__main__":
     slicer_config.load_native_config()
 
     if args.offxyz is not None and (len(args.offxyz) != len(args.stlfiles)):
-        print("ERROR: --offxyz needs to match number of stlfiles")
+        print(f"ERROR: --offxyz ({len(args.offxyz)}) needs to match number of stlfiles ({len(args.stlfiles)})")
         sys.exit(1)
 
     if args.rotxyz is not None and (len(args.rotxyz) != len(args.stlfiles)):

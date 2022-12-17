@@ -77,7 +77,12 @@ class ConfigSettings:
             yield ('-j', str(j))
 
     def get_general_settings(self):
-        for k, v in itertools.chain(self.ekv.items(), self.mkv.items()):
+        for k, v in self.mkv.items():
+            yield ('-s', f"{k}={v}")
+
+        #yield ('-e0',)
+
+        for k, v in self.ekv.items():
             yield ('-s', f"{k}={v}")
 
     def get_part_settings(self, partndx):
@@ -132,10 +137,21 @@ class CURA5Config:
             # only get top-level setting
             settings = sdata.findall(f'./fdm:setting', ns)
 
+            xlat = {'print temperature': 'default_material_print_temperature',
+                    'heated bed temperature': 'default_material_bed_temperature',
+                    'standby temperature': 'material_standby_temperature',
+                    'adhesion tendency': 'material_adhesion_tendency',
+                    'surface energy': 'material_surface_energy',
+                    'build volume temperature': 'build_volume_temperature',
+                    'retraction amount': 'retraction_amount',
+                    'retraction speed': 'retraction_speed',
+                    'print cooling': 'print_cooling' # not found
+            }
+
             values = {}
             for c in settings:
                 #TODO: make sure simply replace ' ' with '_' is okay
-                values[c.attrib['key'].replace(' ', '_')] = c.text
+                values[xlat[c.attrib['key']]] = c.text
 
             return values
 
@@ -303,11 +319,11 @@ class CURA5Config:
         for flag in itertools.chain(*map(lambda x: x.get_defs(), settings)):
             cmd.extend(flag)
 
-        for flag in itertools.chain(*map(lambda x: x.get_general_settings(), settings)):
-            cmd.extend(flag)
-
         for k, v in kvx.items():
             cmd.extend(('-s', f'{k}={v}'))
+
+        for flag in itertools.chain(*map(lambda x: x.get_general_settings(), settings)):
+            cmd.extend(flag)
 
         for p in parts:
             if p.rotation is not None:
