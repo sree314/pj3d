@@ -19,7 +19,15 @@ if __name__ == "__main__":
     p.add_argument("-p", dest="modelpath", help="Path for object files", default=".")
     p.add_argument("-s", dest="settings_file", help="Settings file")
     p.add_argument("--op", dest="oprefix", metavar="PREFIX", help="Output prefix for gcode files.", default="plate")
+    p.add_argument("-m", dest="machine", help="Machine name to pass to plater3d", default="")
+    p.add_argument("-x", dest="extruder", help="Extruder to pass to extruder", default="0")
+    p.add_argument("-l", dest="logfile", help="Logfile", default="printplate.log")
+
+
     args = p.parse_args()
+
+    pplog = open(args.logfile, "w")
+
     root = Path(args.modelpath)
     with open(args.packing, "r") as f:
         packing = json.load(fp=f)
@@ -66,6 +74,10 @@ if __name__ == "__main__":
         if args.settings_file:
             pos = pos + ["-s", args.settings_file]
 
-        cmdline = [f'{binpath/"plater3d"}', '--slicer-binary', 'CuraEngine', '--appimage', '-o',  f"{args.oprefix}.{pno}.gcode"] + pos + files
+        cmdline = [f'{binpath/"plater3d"}', '--slicer-binary', 'CuraEngine', '--appimage', '-o',  f"{args.oprefix}.{pno}.gcode", "-m", args.machine, "-x", args.extruder] + pos + files
         print(shlex.join(cmdline))
-        subprocess.run(cmdline)
+
+        subprocess.run(cmdline, stdout=pplog, stderr=pplog)
+
+    print(f"Wrote log to {args.logfile}", file=sys.stderr)
+    pplog.close()
