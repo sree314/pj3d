@@ -38,6 +38,8 @@ if __name__ == "__main__":
     p.add_argument("--offxyz", dest="offxyz", action="append", help="Specify offsets for x, y, z for each object (if multiple)")
     p.add_argument("--rotxyz", dest="rotxyz", action="append", help="Specify rotations for x, y, z for each object (if multiple)")
     p.add_argument("-n", dest="dry_run", action="store_true", help="Do not actually run slicer")
+    p.add_argument("-m", dest="machine", help="Machine")
+    p.add_argument("-x", dest="extruder", help="Extruder number", type=int, default=0)
 
     logging.basicConfig(level = logging.DEBUG )
 
@@ -58,6 +60,10 @@ if __name__ == "__main__":
         raise NotImplementedError(f'Slicer {args.slicer} not implemented')
 
     slicer_config.load_native_config()
+    if not args.machine in slicer_config._machines:
+        print(f"ERROR: {args.machine} is not a valid machine. Choices: ", file=sys.stderr)
+        print(",".join(slicer_config._machines.keys()))
+        sys.exit(1)
 
     if args.offxyz is not None and (len(args.offxyz) != len(args.stlfiles)):
         print(f"ERROR: --offxyz ({len(args.offxyz)}) needs to match number of stlfiles ({len(args.stlfiles)})")
@@ -73,8 +79,7 @@ if __name__ == "__main__":
             sys.exit(1)
 
         if args.rotxyz is None:
-            print("ERROR: Multiple STL files need --rotxyz for each")
-            sys.exit(1)
+            args.rotxyz = ["0"] * len(args.stlfiles)
 
         stlfiles = []
         for f, off, rot in zip(args.stlfiles, args.offxyz, args.rotxyz):
@@ -88,11 +93,14 @@ if __name__ == "__main__":
     if args.settings:
         for s in args.settings:
             settings.append(slicer_config.load_settings_from_file(s))
+    else:
+        print("ERROR: Loading from Cura configuration is disabled. Please use -s.")
+        sys.exit(1)
 
-    for m in slicer_config._machines.keys():
-        extruder = 0
-        ext = slicer_config._mac2extruders[m][extruder]
-        settings.append(slicer_config.load_settings_from_config(m, ext))
-        slicer_config.invoke_slicer(m, extruder, settings, stlfiles, args.output, dry_run = args.dry_run)
-        break
+        # for m in slicer_config._machines.keys():
+        #     extruder = 0
+        #     ext = slicer_config._mac2extruders[m][extruder]
+        #     settings.append(slicer_config.load_settings_from_config(m, ext))
+        #     break
 
+    slicer_config.invoke_slicer(args.machine, args.extruder, settings, stlfiles, args.output, dry_run = args.dry_run)
