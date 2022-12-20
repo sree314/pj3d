@@ -7,7 +7,7 @@ if __name__ == "__main__":
     p = argparse.ArgumentParser(description="Parse the CuraEngine output and extract settings actually used")
 
     p.add_argument("logfile", help="Log file (or output) of CuraEngine")
-    #p.add_argument("output", nargs="?", help="Debug output, suitable for diff_cura_settings")
+    p.add_argument("output", nargs="?", help="Debug output, suitable for diff_cura_settings")
     args = p.parse_args()
 
     settings = []
@@ -22,6 +22,6 @@ if __name__ == "__main__":
         print(f"Found {len(settings)}, processing last one")
 
         config = cura5.CURA5Config(None, False)
-        config._parse_cli(settings[-1], args.logfile)
+        config._parse_cli(settings[-1], args.output)
     else:
         print("No settings found")
