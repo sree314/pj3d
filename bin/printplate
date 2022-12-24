@@ -10,8 +10,51 @@ from collections import namedtuple
 import itertools
 import subprocess
 import shlex
+from tempfile import TemporaryDirectory
+import os
 
-object_settings = namedtuple('object_settings', 'file position')
+def rename_mesh(stlfile, index, container_dir):
+    if container_dir is None:
+        return stlfile
+
+    # dup is added to accommodate files from different directories
+    dup = 0
+    n = f"{index}_{dup}_{stlfile.name}"
+
+    while (container_dir / n).exists():
+        dup += 1
+        n = f"{index}_{dup}_{stlfile.name}"
+
+    dst = container_dir / n
+
+    os.symlink(stlfile, dst)
+
+    return dst
+
+def fixup_gcode_headers(gcode_file, container_dir):
+    # this should be in plater3d?
+    # use Unix tools for speed
+    output = subprocess.check_output(f"grep '^;TIME_ELAPSED:' '{gcode_file}' | tail -n1", shell=True)
+    patches = []
+    if len(output):
+        kv = output.decode('utf-8').strip().split(':')
+        if len(kv) == 2:
+            time_elapsed = round(float(kv[1]))
+            patches.append((";TIME:6666",f";TIME:{time_elapsed}"))
+        else:
+            print(f"Malformed output: {output}, not patching")
+
+    cmds = []
+    for p, r in patches:
+        cmds.append(f"s/^{p}$/{r}/")
+
+    if container_dir:
+        cmds.append(f"s|^;MESH:{container_dir}/|;MESH:|")
+
+    cmd = ['sed', '-i', "\n".join(cmds), gcode_file]
+    subprocess.run(cmd)
+
+object_settings = namedtuple('object_settings', 'file index position')
 
 if __name__ == "__main__":
     p = argparse.ArgumentParser(description="Generate GCODE for packed plates")
@@ -22,8 +65,8 @@ if __name__ == "__main__":
     p.add_argument("-m", dest="machine", help="Machine name to pass to plater3d", default="")
     p.add_argument("-x", dest="extruder", help="Extruder to pass to extruder", default="0")
     p.add_argument("-l", dest="logfile", help="Logfile", default="printplate.log")
-
-
+    p.add_argument("--no-header-fixups", help="Do not fix up the Gcode headers", action="store_true")
+    p.add_argument("--no-rename-mesh", help="Do not rename meshes to incorporate index", action="store_true")
     args = p.parse_args()
 
     pplog = open(args.logfile, "w")
@@ -35,14 +78,21 @@ if __name__ == "__main__":
     stlinfo = dict([(i['name'], i) for i in packing["stlinfo"]["files"]])
     binpath = Path(__file__).parent
 
+    if args.no_rename_mesh:
+        container_dir = None
+    else:
+        container_dir_temp = TemporaryDirectory(".plater")
+        container_dir = Path(container_dir_temp.name)
+
     for pno, p in enumerate(packing["plates"]):
         d = []
         objects = []
         for obj in p["parts"]:
-            fn = root / obj['name']
             si = stlinfo[obj['name']]
             filecoordxyz = si['min_point']
             platecoordxy = obj['position'][0:2]
+            index = obj['index']
+            fn = rename_mesh(root / obj['name'], index, container_dir)
 
             xlatcoord = [0-filecoordxyz[0]+platecoordxy[0],
                          0-filecoordxyz[1]+platecoordxy[1],
@@ -59,7 +109,8 @@ if __name__ == "__main__":
                 print(f"ERROR: {fn} does not exist, use -p to specify a model path if needed", file=sys.stderr)
                 continue
 
-            objects.append(object_settings(file=fn, position=[round(c, 2) for c in xlatcoord]))
+            objects.append(object_settings(file=fn, index=index,
+                                           position=[round(c, 2) for c in xlatcoord]))
 
         files = []
         pos = []
@@ -74,10 +125,26 @@ if __name__ == "__main__":
         if args.settings_file:
             pos = pos + ["-s", args.settings_file]
 
-        cmdline = [f'{binpath/"plater3d"}', '--slicer-binary', 'CuraEngine', '--appimage', '-o',  f"{args.oprefix}.{pno}.gcode", "-m", args.machine, "-x", args.extruder] + pos + files
-        print(shlex.join(cmdline))
+        output_gcode = f"{args.oprefix}.{pno}.gcode"
+        cmdline = [f'{binpath/"plater3d"}', '--slicer-binary', 'CuraEngine', '--appimage', '-o', output_gcode, "-m", args.machine, "-x", args.extruder] + pos + files
 
-        subprocess.run(cmdline, stdout=pplog, stderr=pplog)
+        print(shlex.join(cmdline), file=pplog)
+
+        r = subprocess.run(cmdline, stdout=pplog, stderr=pplog)
+        if r.returncode != 0:
+            print("ERROR: plater3d failed", file=sys.stderr)
+            sys.exit(1)
+        else:
+            if not args.no_header_fixups:
+                fixup_gcode_headers(output_gcode, container_dir)
+
+            if not args.no_rename_mesh and container_dir:
+                for o in objects:
+                    print(f"Removing", o.file)
+                    os.unlink(o.file)
+
+    if not args.no_rename_mesh and container_dir:
+        container_dir_temp.cleanup()
 
     print(f"Wrote log to {args.logfile}", file=sys.stderr)
     pplog.close()
