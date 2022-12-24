@@ -3,11 +3,51 @@
 from plater3d.slicers import cura5
 import argparse
 
+def clean_settings(settings):
+    dup_allow = set() # settings for which duplicates don't mean override
+    disable = set(["day", "time"]) # settings which should be commented out
+
+    already_seen = set()
+    out = []
+    for scope, k, v in reversed(settings):
+        action = None
+
+        if k in disable:
+            action = "disable"
+        elif k not in dup_allow:
+            s = (scope, k)
+            if s in already_seen:
+                action = "duplicate"
+            else:
+                action = "ok"
+                already_seen.add((scope, k))
+        else:
+           action = "ok"
+
+        assert action is not None
+        out.append((action, (scope, k, v)))
+
+    return list(reversed(out))
+
+def write_settings(settings, filename):
+    with open(filename, "w") as f:
+        last_scope = None
+        for action, (scope, k, v) in settings:
+            if last_scope != scope:
+                print(f"################## scope: {scope}", file=f)
+                last_scope = scope
+
+            if action == "disable" or action == "duplicate":
+                print(f"#{action}: {k}=\"{v}\"", file=f)
+            else:
+                print(f"{k}=\"{v}\"", file=f)
+
+
 if __name__ == "__main__":
     p = argparse.ArgumentParser(description="Parse the CuraEngine output and extract settings actually used")
 
     p.add_argument("logfile", help="Log file (or output) of CuraEngine")
-    p.add_argument("output", nargs="?", help="Debug output, suitable for diff_cura_settings")
+    p.add_argument("output", nargs="?", help="File to store settings in, suitable for diff_cura_settings, as well as -s of printplate")
     args = p.parse_args()
 
     settings = []
@@ -22,6 +62,10 @@ if __name__ == "__main__":
         print(f"Found {len(settings)}, processing last one")
 
         config = cura5.CURA5Config(None, False)
-        config._parse_cli(settings[-1], args.output)
+        settings = config._parse_cli(settings[-1])
+        csettings = clean_settings(settings)
+        if args.output:
+            write_settings(csettings, args.output)
+            print(f"Wrote output to {args.output}")
     else:
         print("No settings found")
