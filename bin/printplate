@@ -12,6 +12,47 @@ import subprocess
 import shlex
 from tempfile import TemporaryDirectory
 import os
+import re
+
+PLATE_SPEC_RE = re.compile(r"(?P<num>\d+)(-(?P<end>\d+))?")
+
+def parse_plate_spec(spec, num_plates):
+    spec = [x.strip() for x in spec.split(",")]
+
+    # does not remove duplicates
+    out = []
+
+    for s in spec:
+        m = PLATE_SPEC_RE.match(s)
+        if m is None:
+            print(f"ERROR: Syntax incorrect for plate specification {s}", file=sys.stderr)
+            return None
+        else:
+            num = int(m.group('num'))
+            end = m.group('end')
+
+            if end:
+                end = int(end)
+
+                if num > end:
+                    print(f"ERROR: Range {num}-{end} start is greater than end.", file=sys.stderr)
+                    return None
+                elif end >= num_plates:
+                    print(f"ERROR: Plate {end} is out of range, only {num_plates} present, range is 0 to {num_plates-1}.",
+                          file=sys.stderr)
+                    return None
+
+            if num < 0 or num >= num_plates:
+                print(f"ERROR: Plate {num} is out of range, only {num_plates} present, range is 0 to {num_plates-1}.",
+                      file=sys.stderr)
+                return None
+
+            if num and end:
+                out.extend(range(num, end+1))
+            else:
+                out.append(num)
+
+    return out
 
 def rename_mesh(stlfile, index, container_dir):
     if container_dir is None:
@@ -52,6 +93,8 @@ if __name__ == "__main__":
     p.add_argument("-l", dest="logfile", help="Logfile", default="printplate.log")
     p.add_argument("--no-header-fixup", help="Do not fix up the Gcode headers", action="store_true")
     p.add_argument("--no-rename-mesh", help="Do not rename meshes to incorporate index", action="store_true")
+    p.add_argument("--only", help="Comma-separated list of plates to print, also accepts ranges. e.g. 0,3-5,8")
+
     args = p.parse_args()
 
     pplog = open(args.logfile, "w")
@@ -69,7 +112,15 @@ if __name__ == "__main__":
         container_dir_temp = TemporaryDirectory(".plater")
         container_dir = Path(container_dir_temp.name)
 
-    for pno, p in enumerate(packing["plates"]):
+    if args.only:
+        only = parse_plate_spec(args.only, len(packing["plates"]))
+        if only is None: sys.exit(1)
+    else:
+        only = range(0,len(packing["plates"]))
+
+    for pno in only:
+        print(f"Printing plate {pno}", file=sys.stderr)
+        p = packing["plates"][pno]
         d = []
         objects = []
         for obj in p["parts"]:
