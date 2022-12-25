@@ -68,7 +68,7 @@ def rename_mesh(stlfile, index, container_dir):
 
     dst = container_dir / n
 
-    os.symlink(stlfile, dst)
+    os.symlink(stlfile.resolve(), dst)
 
     return dst
 

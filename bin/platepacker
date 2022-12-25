@@ -174,5 +174,5 @@ if __name__ == "__main__":
         print(f"Wrote to {args.output}", file=sys.stderr)
     else:
         for pno, p in enumerate(plate_output["plates"]):
-            for o in p:
+            for o in p["parts"]:
                 print(pno, o['name'], o['index'], o['position'])
