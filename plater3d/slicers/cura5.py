@@ -305,7 +305,7 @@ class CURA5Config:
 
         return out, defjsons
 
-    def invoke_slicer(self, machine, extruder_ndx, settings, parts, output, dry_run = False):
+    def invoke_slicer(self, machine, extruder_ndx, settings, parts, output, dry_run = False, logfile = None):
         extruders = self._mac2extruders[machine]
         kvx = {'machine_extruder_count': len(extruders),
                'adhesion_extruder_nr': extruder_ndx}
@@ -333,25 +333,19 @@ class CURA5Config:
             cmd.extend(['-l', p.filename])
 
             if p.offset is None:
-                # TODO: add center_object here?
-                pass
+                cmd.extend(('-s', 'center_object=True'))
             else:
                 for pos, off in zip(('x', 'y', 'z'), p.offset):
                     # absolute pos or offset?
                     cmd.extend(['-s', f'mesh_position_{pos}={off}'])
 
-
-
-        cmd.extend(['-o', output])
+        cmd.extend(['-o', output, '-v'])
 
         print(" ".join([f'{k}={v}' for (k, v) in env.items()]),
               " ".join(cmd))
 
         if not dry_run:
-            with open("invoke.log", "w") as f:
-                subprocess.run(cmd, stdout=f, stderr=subprocess.STDOUT, env=env, check=True)
-            #print(output.decode('utf-8', errors='replace'), file=f)
-            #print(output)
+            subprocess.run(cmd, stdout=logfile, stderr=subprocess.STDOUT, env=env, check=True)
 
     def _load_container(self, name, ccfg):
         settings = []

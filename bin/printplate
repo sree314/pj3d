@@ -32,22 +32,7 @@ def rename_mesh(stlfile, index, container_dir):
     return dst
 
 def fixup_gcode_headers(gcode_file, container_dir):
-    # this should be in plater3d?
-    # use Unix tools for speed
-    output = subprocess.check_output(f"grep '^;TIME_ELAPSED:' '{gcode_file}' | tail -n1", shell=True)
-    patches = []
-    if len(output):
-        kv = output.decode('utf-8').strip().split(':')
-        if len(kv) == 2:
-            time_elapsed = round(float(kv[1]))
-            patches.append((";TIME:6666",f";TIME:{time_elapsed}"))
-        else:
-            print(f"Malformed output: {output}, not patching")
-
     cmds = []
-    for p, r in patches:
-        cmds.append(f"s/^{p}$/{r}/")
-
     if container_dir:
         cmds.append(f"s|^;MESH:{container_dir}/|;MESH:|")
 
@@ -65,7 +50,7 @@ if __name__ == "__main__":
     p.add_argument("-m", dest="machine", help="Machine name to pass to plater3d", default="")
     p.add_argument("-x", dest="extruder", help="Extruder to pass to extruder", default="0")
     p.add_argument("-l", dest="logfile", help="Logfile", default="printplate.log")
-    p.add_argument("--no-header-fixups", help="Do not fix up the Gcode headers", action="store_true")
+    p.add_argument("--no-header-fixup", help="Do not fix up the Gcode headers", action="store_true")
     p.add_argument("--no-rename-mesh", help="Do not rename meshes to incorporate index", action="store_true")
     args = p.parse_args()
 
@@ -128,6 +113,9 @@ if __name__ == "__main__":
         output_gcode = f"{args.oprefix}.{pno}.gcode"
         cmdline = [f'{binpath/"plater3d"}', '--slicer-binary', 'CuraEngine', '--appimage', '-o', output_gcode, "-m", args.machine, "-x", args.extruder] + pos + files
 
+        if args.no_header_fixup:
+            cmdline.append("--no-header-fixup")
+
         print(shlex.join(cmdline), file=pplog)
 
         r = subprocess.run(cmdline, stdout=pplog, stderr=pplog)
@@ -135,7 +123,7 @@ if __name__ == "__main__":
             print("ERROR: plater3d failed", file=sys.stderr)
             sys.exit(1)
         else:
-            if not args.no_header_fixups:
+            if not args.no_header_fixup:
                 fixup_gcode_headers(output_gcode, container_dir)
 
             if not args.no_rename_mesh and container_dir:

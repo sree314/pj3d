@@ -9,6 +9,24 @@ from plater3d.appimage import AppImage2
 from plater3d.slicers.cura5 import CURA5Config
 import logging
 from collections import namedtuple
+import tempfile
+import subprocess
+
+def read_gcode_header(logfile):
+    with open(logfile, "r") as f:
+        header = []
+        in_header = False
+        for l in f:
+            if l.startswith('Gcode header after slicing:'):
+                in_header = True
+                continue
+
+            if l.startswith('End of gcode header.'):
+                break
+
+            if in_header: header.append(l)
+
+    return header
 
 def parse_triple(triple, default='0.0'):
     v = triple.split(',')
@@ -40,6 +58,7 @@ if __name__ == "__main__":
     p.add_argument("-n", dest="dry_run", action="store_true", help="Do not actually run slicer")
     p.add_argument("-m", dest="machine", help="Machine")
     p.add_argument("-x", dest="extruder", help="Extruder number", type=int, default=0)
+    p.add_argument("--no-header-fixup", action="store_true", help="Fixup the header since we're running CuraEngine in sequential mode")
 
     logging.basicConfig(level = logging.DEBUG )
 
@@ -103,4 +122,17 @@ if __name__ == "__main__":
         #     settings.append(slicer_config.load_settings_from_config(m, ext))
         #     break
 
-    slicer_config.invoke_slicer(args.machine, args.extruder, settings, stlfiles, args.output, dry_run = args.dry_run)
+    h, logfile = tempfile.mkstemp(suffix='.log')
+    os.close(h)
+
+    print(f"Writing CuraEngine log to {logfile}")
+
+    with open(logfile, "w") as f:
+        slicer_config.invoke_slicer(args.machine, args.extruder, settings, stlfiles, args.output, dry_run = args.dry_run, logfile=f)
+
+    if not args.no_header_fixup:
+        header = read_gcode_header(logfile)
+        lines = len(header)
+        replacement = ''.join(header).replace('\n', '\\n')
+        subprocess.run(['sed', '-i', f'1,+{lines}c{replacement}', args.output])
+
