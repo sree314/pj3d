@@ -7,6 +7,7 @@ class PrintJob:
         self.name = name
         self.stlfiles = []
         self.counts = {}
+        self.done = {}
         self._loaded = False
         self.machine = ''
         self.extruders = [0]
@@ -46,6 +47,15 @@ class PrintJob:
 
         return self.counts[stlfile]
 
+    def mark_done(self, stlfile, count):
+        if self.counts[stlfile] < count:
+            raise ValueError(f"Can't mark {count} as done, only {self.counts[stlfile]} parts to print")
+
+        if stlfile not in self.done:
+            self.done[stlfile] = 0
+
+        self.done[stlfile] += count
+
     def save(self, filename = None):
         if filename is None:
             filename = self.filename
@@ -57,6 +67,7 @@ class PrintJob:
               'version': 1,
               'stlfiles': self.stlfiles,
               'counts': self.counts,
+              'done': self.done,
               'machine': self.machine,
               'extruders': self.extruders,
               'print_settings': self.print_settings}
@@ -80,8 +91,13 @@ class PrintJob:
                             op.get('extruders', [0])[0],
                             op.get('print_settings', ''))
 
+        if 'done' not in op:
+            op['done'] = {}
+
         for s in op['stlfiles']:
             pj.add_model(s, op['counts'][s])
+            if s in op['done']:
+                pj.mark_done(s, op['done'][s])
 
         pj._loaded = True
         pj.filename = Path(filename)

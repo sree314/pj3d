@@ -14,6 +14,7 @@ import subprocess
 import json
 
 from plater3d.job import PrintJob
+from plater3d.plate import PlatesFile
 
 def load_job(args):
     fn = PrintJob.name2file(args.jobname)
@@ -34,6 +35,7 @@ def create(args):
         print(f"ERROR: Print settings file {args.print_settings} does not exist")
         return 1
 
+    job = PrintJob(args.jobname)
     os.mkdir(args.jobname + ".job")
     job.set_print_params(args.machine, args.extruder, args.print_settings)
     job.save(fn)
@@ -85,7 +87,7 @@ def ls_models(args):
     if job is None: return 1
     print(f"Machine: {job.machine}, Extruder: {job.extruders[0]}, Print Settings: {job.print_settings}")
     for p in job.stlfiles:
-        print(f"{p}: {job.counts[p]} copies")
+        print(f"{p}: {job.counts[p]} copies, {job.done.get(p, 0)} done.")
 
     return 0
 
@@ -153,6 +155,63 @@ def printplate(args):
     r = subprocess.run(['printplate'] + cmds)
     return r.returncode
 
+def markdone(args):
+    job = load_job(args)
+    if job is None: return 1
+
+    if args.plate:
+        op = job.root / 'plates.json'
+        if not op.exists():
+            print("ERROR: Plate file {op} does not exist", file=sys.stderr)
+            return 1
+
+        pf = PlatesFile.load(op)
+        parts = set()
+        for plate in args.plate:
+            if plate >= len(pf.plates):
+                print(f"ERROR: Plate {plate} is invalid", file=sys.stderr)
+                return 1
+
+            part_counts = {}
+
+            for part in pf.plates[plate].parts:
+                part_counts[part.name] = part_counts.get(part.name, 0) + 1
+                parts.add(part.name)
+
+            print(f"Plate #{plate}:")
+            for part, count in part_counts.items():
+                print("  ", count, "of", part)
+
+    else:
+        parts = job.stlfiles
+
+    for p in parts:
+        done = job.done.get(p, 0)
+        needed = job.counts[p]
+        if done == needed:
+            print(f"{p} completed")
+        else:
+            while True:
+                print(f"{needed-done} of {p} still required, how many printed? [0]", end=' ')
+                count = input()
+                if count != "":
+                    try:
+                        printed = int(count)
+                        if printed <= needed - done:
+                            # negative numbers are okay to mark not done
+                            job.mark_done(p, printed)
+                            print(f"Marked {printed} parts done, {needed - (done + printed)} remaining")
+                            break
+                        else:
+                            print(f"Count {printed} exceeds {needed - done} remaining.")
+                    except ValueError:
+                        print(f"{count} is not a valid integer. Try again.")
+                else:
+                    break
+
+    job.save()
+    return 0
+
 if __name__ == "__main__":
     p = argparse.ArgumentParser(description="Manage a 3D printing job")
     p.add_argument("jobname", help="Job name. Must be usable as a filename.")
@@ -195,6 +254,10 @@ if __name__ == "__main__":
 
     printp = sp.add_parser('print', help='Print plates')
     printp.set_defaults(function=printplate)
+
+    markdonep = sp.add_parser('done', help='Mark completed prints, by part')
+    markdonep.add_argument('plate', nargs="*", type=int, metavar="PLATE", help="Update only parts on PLATE")
+    markdonep.set_defaults(function=markdone)
 
     args = p.parse_args()
 
