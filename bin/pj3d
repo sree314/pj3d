@@ -155,6 +155,33 @@ def printplate(args):
     r = subprocess.run(['printplate'] + cmds)
     return r.returncode
 
+def printpart(args):
+    job = load_job(args)
+    if job is None: return 1
+
+    op = job.root / "stlinfo.json"
+    with open(op, "r") as f:
+        stlinfo = json.load(fp=f)
+
+    part = Path(args.stlfile).resolve()
+
+    for p in job.stlfiles:
+        if Path(p) == part:
+            break
+    else:
+        print(f"ERROR: {part} is not part of the job")
+        return 1
+
+    cmds = ['--slicer-binary', 'CuraEngine', '--appimage']
+    cmds.extend(("-s", str(job.print_settings)))
+    cmds.extend(("-m", job.machine))
+    cmds.extend(("-x", str(job.extruders[0])))
+    cmds.append(str(part))
+    cmds.extend(("-o", str(job.root / (part.stem + '.gcode'))))
+
+    r = subprocess.run(['plater3d'] + cmds)
+    return r.returncode
+
 def markdone(args):
     job = load_job(args)
     if job is None: return 1
@@ -258,6 +285,10 @@ if __name__ == "__main__":
     markdonep = sp.add_parser('done', help='Mark completed prints, by part')
     markdonep.add_argument('plate', nargs="*", type=int, metavar="PLATE", help="Update only parts on PLATE")
     markdonep.set_defaults(function=markdone)
+
+    printpartp = sp.add_parser('printpart', help='Print part')
+    printpartp.add_argument('stlfile', help='STL File to print')
+    printpartp.set_defaults(function=printpart)
 
     args = p.parse_args()
 
