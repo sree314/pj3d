@@ -1,0 +1,86 @@
+#!/usr/bin/env python3
+
+import argparse
+from plater3d.plate import PlatesFile
+
+def vistext(plate, w=120, h=120, res = 5):
+    gridx = (w + res - 1) // res
+    gridy = (h + res - 1) // res
+
+    grid = [['.' for i in range(gridx)] for j in range(gridy)]
+
+
+    for i, part in enumerate(plate.parts):
+        x, y, w, h = part.position
+
+        for xx in range(x, x+w):
+            for yy in range(y, y+h):
+                grid[gridy - yy//res][xx//res] = chr(i+97)
+
+    for row in grid:
+        print(''.join(row))
+
+def bounds(parts):
+    minx = min([p.x for p in parts])
+    miny = min([p.y for p in parts])
+    maxx = max([p.x+p.w for p in parts])
+    maxy = max([p.y+p.h for p in parts])
+
+    return (minx, miny, maxx, maxy)
+
+def center(parts, area):
+    minx, miny, maxx, maxy = bounds(parts)
+
+    areaw = area[2] - area[0]
+    areah = area[3] - area[1]
+    partsw = maxx - minx
+    partsh = maxy - miny
+    if partsw > areaw: return False
+    if partsh > areah: return False
+
+    centerx = (areaw - partsw) // 2
+    centery = (areah - partsh) // 2
+
+    for p in parts:
+        p.x = area[0] + (p.x - minx) + centerx
+        p.y = area[1] + (p.y - miny) + centery
+
+    return True
+
+def centerx(parts):
+    b = bounds(parts)
+    area = [0, b[1], 120, b[3]]
+    if not center(parts, area):
+        print("centering failed")
+
+def platecmds(plate, border):
+    handlers = {'cx': centerx}
+    parts = dict([(chr(i+97), part) for i, part in enumerate(plate.parts)])
+
+    while True:
+        vistext(plate, res=border)
+        print("cmd> ", end='')
+        cmd = input()
+        if cmd:
+            if cmd == 'q':
+                break
+            else:
+                eval(cmd, handlers, parts)
+
+
+if __name__ == "__main__":
+    p = argparse.ArgumentParser(description="Adjust a given packing")
+    p.add_argument("packing", help="JSON containing packing information")
+
+    args = p.parse_args()
+
+    packing = PlatesFile.load(args.packing)
+
+    for i, plate in enumerate(packing.plates):
+        platecmds(plate, border=packing.border)
+
+    print("save? (y/n)", end='')
+    yn = input()
+    if yn.upper() == 'Y':
+        packing.save()
+        print("saved")
