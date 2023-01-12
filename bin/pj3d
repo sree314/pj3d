@@ -67,6 +67,7 @@ def add_models(args):
         print(f"Adding {args.copies} copies of {p}")
         job.add_model(str(p), args.copies)
 
+    job.compute_unique_stems()
     job.save()
     return 0
 
@@ -87,7 +88,8 @@ def ls_models(args):
     if job is None: return 1
     print(f"Machine: {job.machine}, Extruder: {job.extruders[0]}, Print Settings: {job.print_settings}")
     for p in job.stlfiles:
-        print(f"{p}: {job.counts[p]} copies, {job.done.get(p, 0)} done.")
+        uniq = job.fileprops[p].get('unique', 'NOTSET')
+        print(f"{p}({uniq}): {job.counts[p]} copies, {job.done.get(p, 0)} done.")
 
     return 0
 
@@ -177,7 +179,7 @@ def printpart(args):
         p_stlfiles = set([str(p) for p in parts])
         diff = p_stlfiles - job_stlfiles
         if len(diff):
-            print(f"ERROR: Parts {diff}  are not part of the job")
+            print(f"ERROR: Parts {diff} are not part of the job")
             return 1
     else:
         parts = [Path(x) for x in job.stlfiles]

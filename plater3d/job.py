@@ -12,6 +12,7 @@ class PrintJob:
         self.machine = ''
         self.extruders = [0]
         self.print_settings = ''
+        self.fileprops = {}
 
     @property
     def loaded(self):
@@ -36,16 +37,39 @@ class PrintJob:
         self.counts[stlfile] -= count
         if self.counts[stlfile] == 0:
             self.stlfiles.remove(stlfile)
+
+            del self.fileprops[stlfile]
             del self.counts[stlfile]
 
     def add_model(self, stlfile, count):
         if stlfile not in self.counts:
             self.stlfiles.append(stlfile)
+            self.fileprops[stlfile] = {}
             self.counts[stlfile] = count
         else:
             self.counts[stlfile] += count
 
         return self.counts[stlfile]
+
+    def compute_unique_stems(self, from_scratch = False):
+        seen = set()
+        for f in self.stlfiles:
+            fp = Path(f)
+
+            if from_scratch:
+                uniq = fp.name
+            else:
+                uniq = self.fileprops[f].get('unique', fp.name)
+
+            if uniq in seen:
+                dup = 1
+                while f'{dup}_{uniq}' not in seen:
+                    dup += 1
+
+                uniq = f'{dup}_{uniq}'
+
+            self.fileprops[f]['unique'] = uniq
+            seen.add(uniq)
 
     def mark_done(self, stlfile, count):
         if self.counts[stlfile] < count:
@@ -70,7 +94,8 @@ class PrintJob:
               'done': self.done,
               'machine': self.machine,
               'extruders': self.extruders,
-              'print_settings': self.print_settings}
+              'print_settings': self.print_settings,
+              'fileprops': self.fileprops}
 
         with open(filename, "w") as f:
             json.dump(op, fp=f, indent='  ')
@@ -94,10 +119,15 @@ class PrintJob:
         if 'done' not in op:
             op['done'] = {}
 
+        fileprops = op.get('fileprops', {})
+
         for s in op['stlfiles']:
             pj.add_model(s, op['counts'][s])
             if s in op['done']:
                 pj.mark_done(s, op['done'][s])
+
+            if s in fileprops:
+                pj.fileprops[s] = fileprops[s]
 
         pj._loaded = True
         pj.filename = Path(filename)
