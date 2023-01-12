@@ -163,24 +163,39 @@ def printpart(args):
     with open(op, "r") as f:
         stlinfo = json.load(fp=f)
 
-    part = Path(args.stlfile).resolve()
-
-    for p in job.stlfiles:
-        if Path(p) == part:
-            break
-    else:
-        print(f"ERROR: {part} is not part of the job")
+    if args.all and len(args.stlfiles) > 0:
+        print(f"ERROR: Can't specify --all and STL files in the same printpart command")
         return 1
 
-    cmds = ['--slicer-binary', 'CuraEngine', '--appimage']
-    cmds.extend(("-s", str(job.print_settings)))
-    cmds.extend(("-m", job.machine))
-    cmds.extend(("-x", str(job.extruders[0])))
-    cmds.append(str(part))
-    cmds.extend(("-o", str(job.root / (part.stem + '.gcode'))))
+    if len(args.stlfiles) == 0 and not args.all:
+        print(f"WARNING: No parts specified, assuming --all")
+        args.all = True
 
-    r = subprocess.run(['plater3d'] + cmds)
-    return r.returncode
+    if not args.all:
+        parts = [Path(x).resolve() for x in args.stlfiles]
+        job_stlfiles = set(job.stlfiles)
+        p_stlfiles = set([str(p) for p in parts])
+        diff = p_stlfiles - job_stlfiles
+        if len(diff):
+            print(f"ERROR: Parts {diff}  are not part of the job")
+            return 1
+    else:
+        parts = [Path(x) for x in job.stlfiles]
+
+    for part in parts:
+        cmds = ['--slicer-binary', 'CuraEngine', '--appimage']
+        cmds.extend(("-s", str(job.print_settings)))
+        cmds.extend(("-m", job.machine))
+        cmds.extend(("-x", str(job.extruders[0])))
+        cmds.append(str(part))
+        #TODO: this can be overwritten!
+        cmds.extend(("-o", str(job.root / (part.stem + '.gcode'))))
+
+        r = subprocess.run(['plater3d'] + cmds)
+        if r.returncode != 0:
+            return r.returncode
+
+    return 0
 
 def markdone(args):
     job = load_job(args)
@@ -287,7 +302,8 @@ if __name__ == "__main__":
     markdonep.set_defaults(function=markdone)
 
     printpartp = sp.add_parser('printpart', help='Print part')
-    printpartp.add_argument('stlfile', help='STL File to print')
+    printpartp.add_argument('stlfiles', nargs="*", help='STL Files to print')
+    printpartp.add_argument("--all", action="store_true", help="Print all parts")
     printpartp.set_defaults(function=printpart)
 
     args = p.parse_args()
