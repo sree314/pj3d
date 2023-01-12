@@ -146,12 +146,17 @@ def printplate(args):
         print("ERROR: {op} does not exist. Run pack before printing", file=sys.stderr)
         return 1
 
+
+    unique_stems = ",".join([f"{x}:{job.fileprops[x]['unique']}" for
+                             x in job.fileprops if 'unique' in job.fileprops[x]])
+
     cmds = []
     cmds.extend(("-s", str(job.print_settings)))
     cmds.extend(("--op", str(job.root / job.name)))
     cmds.extend(("-m", job.machine))
     cmds.extend(("-x", str(job.extruders[0])))
     cmds.extend(("-l", str(job.root / 'print.log')))
+    cmds.extend(("--unique", unique_stems))
     cmds.append(str(op))
 
     r = subprocess.run(['printplate'] + cmds)
