@@ -118,6 +118,7 @@ def pack(args):
     cmds = []
     if args.border: cmds.extend(("-b", args.border))
     if args.volxyz: cmds.extend(("--volxyz", args.volxyz))
+    if not args.no_tight: cmds.append("--tight")
     if args.max_height_diff: cmds.extend(("--max-height-diff", args.max_height_diff))
     cmds.append(op)
 
@@ -296,6 +297,7 @@ if __name__ == "__main__":
     packp.add_argument("-b", dest="border", metavar="BORDER", help="Border around each object")
     packp.add_argument("--volxyz", dest="volxyz", help="Comma-separated 3D volume")
     packp.add_argument("--mhd", dest="max_height_diff", help="Maximum allowable height difference between models in plate")
+    packp.add_argument("--no-tight", dest="no_tight", help="Do not produce a 'tight' packing", action='store_true')
     packp.set_defaults(function=pack)
 
     visp = sp.add_parser('vispack', help='Visualize packed plates')

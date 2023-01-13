@@ -6,6 +6,7 @@ import json
 import sys
 from rectpack import newPacker
 import rectpack
+import math
 
 class Part:
     def __init__(self, stlinfo):
@@ -82,7 +83,7 @@ def group_rects(rects, height_diff = 10):
 
     return groups
 
-def pack(rects, volxyz, border, center_packing = True):
+def pack(rects, volxyz, border, center_packing = True, center_volxyz = None):
     p = newPacker(sort_algo = rectpack.SORT_LSIDE, rotation=False)
     p.add_bin(volxyz[0], volxyz[1], count=float('inf'))
 
@@ -107,11 +108,11 @@ def pack(rects, volxyz, border, center_packing = True):
 
 
     if center_packing:
+        if center_volxyz is None: center_volxyz = volxyz
         for b in plates:
             bounds = plates[b]['_bounds']
-            print(bounds)
-            center_x = (volxyz[0] - (bounds[2] - bounds[0])) // 2
-            center_y = (volxyz[1] - (bounds[3] - bounds[1])) // 2
+            center_x = (center_volxyz[0] - (bounds[2] - bounds[0])) // 2
+            center_y = (center_volxyz[1] - (bounds[3] - bounds[1])) // 2
             for p in plates[b]:
                 if p == '_bounds': continue
                 x, y, w, h = plates[b][p]
@@ -119,15 +120,74 @@ def pack(rects, volxyz, border, center_packing = True):
 
     return plates
 
+def tight_vol(group, border, volxyz):
+    mw = None
+    mh = None
+    area = 0
+    for p in group:
+        w, h, z = p[1:]
+        if mw is None or w > mw: mw = w
+        if mh is None or h > mh: mh = h
+        area += w * h
+
+    rad = max(round(math.sqrt(area / math.pi)), mw, mh)
+    rad = rad + 2 * border
+
+    return [rad, rad, volxyz[2]]
+
+def packing_to_plate(packing, groupno):
+    plate = {'parts': []}
+
+    for obj in packing:
+        if obj == '_bounds':
+            plate["bounds"] = packing[obj]
+        else:
+            objinfo = {'name': obj[0],
+                       'index': obj[1],
+                       'group': groupno,
+                       'position': list(packing[obj])
+            }
+
+            plate['parts'].append(objinfo)
+
+    return plate
+
+def repack_tight(plate, border, volxyz, groupno, center_packing = True):
+    rects = []
+
+    for obj in plate['parts']:
+        rects.append(((obj['name'], obj['index']),
+                      obj['position'][2] + 2*border,
+                      obj['position'][3] + 2*border, -1))
+
+    tvolxyz = tight_vol(rects, border, volxyz)
+
+    growx = (volxyz[0] - tvolxyz[0] + border-1) // border
+    growy = (volxyz[1] - tvolxyz[1] + border-1) // border
+
+    tries = 1
+    while True:
+        pp = pack(rects, tvolxyz, border, center_packing, center_volxyz = volxyz)
+        if len(pp) == 1:
+            # TODO: some metric of improvement?
+            print(f"Tightening finished after {tries} attempts.")
+            break
+        tvolxyz[0] = min(volxyz[0], tvolxyz[0] + growx)
+        tvolxyz[1] = min(volxyz[1], tvolxyz[1] + growy)
+        tries += 1
+
+    return packing_to_plate(pp[0], groupno)
+
 if __name__ == "__main__":
     p = argparse.ArgumentParser(description="")
     p.add_argument("stlinfo", help="STL information (JSON file)")
-    p.add_argument("-b", dest="border", type=int, help="Border (mm)", default=5)
+    p.add_argument("-b", dest="border", type=int, help="Border (mm)", default=3)
     p.add_argument("--volxyz", help="Printer volume", default="120")
     p.add_argument("--max-height-diff",
                    help="Maximum height difference between parts on the same plate", default=15, type=int)
     p.add_argument("-o", dest="output", help="Output file")
     p.add_argument("--no-centering", dest="centering", help="Do not center packings", action="store_false")
+    p.add_argument("--tight", dest="tight", help="Produce a 'tight' packing", action="store_true")
 
     args = p.parse_args()
 
@@ -152,18 +212,10 @@ if __name__ == "__main__":
     for groupno, group in enumerate(group_rects(rects, height_diff = args.max_height_diff)):
         plates = pack(group, volxyz, args.border, center_packing = args.centering)
         for p in plates:
-            plate = {'parts': []}
-            for obj in plates[p]:
-                if obj == '_bounds':
-                    plate["bounds"] = plates[p][obj]
-                else:
-                    objinfo = {'name': obj[0],
-                               'index': obj[1],
-                               'group': groupno,
-                               'position': list(plates[p][obj])
-                               }
-
-                    plate['parts'].append(objinfo)
+            plate = packing_to_plate(plates[p], groupno)
+            if args.tight:
+                plate = repack_tight(plate, args.border, volxyz, groupno,
+                                     center_packing = args.centering)
 
             plate_output["plates"].append(plate)
 
@@ -171,7 +223,7 @@ if __name__ == "__main__":
         with open(args.output, "w") as f:
             json.dump(plate_output, fp=f, indent='  ')
 
-        print(f"Wrote to {args.output}", file=sys.stderr)
+        print(f"Wrote {len(plate_output['plates'])} plates to {args.output}", file=sys.stderr)
     else:
         for pno, p in enumerate(plate_output["plates"]):
             for o in p["parts"]:
