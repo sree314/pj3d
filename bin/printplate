@@ -109,10 +109,9 @@ if __name__ == "__main__":
 
     stlinfo = dict([(i['name'], i) for i in packing["stlinfo"]["files"]])
     binpath = Path(__file__).parent
-
+    unique = {}
     if args.no_rename_mesh:
         container_dir = None
-        unique = {}
     else:
         container_dir_temp = TemporaryDirectory(".plater")
         container_dir = Path(container_dir_temp.name)
