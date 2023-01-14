@@ -126,7 +126,7 @@ class PrintJob:
         fileprops = op.get('fileprops', {})
 
         for s in op['stlfiles']:
-            pj.add_model(s, op['counts'][s], fileprops[s].get('group', None))
+            pj.add_model(s, op['counts'][s], fileprops.get(s, {}).get('group', None))
             if s in op['done']:
                 pj.mark_done(s, op['done'][s])
 
