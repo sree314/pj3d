@@ -16,6 +16,10 @@ class Part:
                 'position': self.position}
 
     @property
+    def key(self):
+        return (self.name, self.index)
+
+    @property
     def x(self):
         return self.position[0]
 

@@ -47,20 +47,97 @@ def center(parts, area):
 
     return True
 
-def centerx(parts):
+def stripes(parts, axis=0):
+    assert axis==0 or axis==1
+
+
+    oaxis = 1 - axis  # y if axis is x
+    extent = 3 if oaxis == 1 else 2 # h if oaxis is y
+
+    # TODO
+    # sort by yend if axis is x
+    # this is because as soon as a part's yend < the current parts ybegin, we can stop processing
+    # more parts
+    #sp = sorted(parts, key=lambda p: p.position[oaxis] + p.position[extent], reversed=True)
+
+    # for each border part
+    #   a part forms the vertical border if its x is the lowest for all y
+    #    and vice versa for horizontal border
+
+    # two parts belong to the same horizontal stripe if their y-ranges overlap
+    part_stripes = dict([(p.key, p.key) for p in parts])
+
+    def find(ko):
+        if part_stripes[ko] == part_stripes[ko]:
+            return part_stripes[ko]
+        else:
+            k = find(part_stripes[ko])
+            part_stripes[ko] = k
+            return k
+
+    def union(o1, o2):
+        ko1 = find(o1.key)
+        ko2 = find(o2.key)
+        if ko1 is ko2: return
+        if ko1 < ko2:
+            part_stripes[ko2] = ko1
+        else:
+            part_stripes[ko1] = ko2
+
+    for p in parts:
+        for p2 in parts:
+            kp = find(p.key)
+            kp2 = find(p2.key)
+
+            if kp is kp2:
+                continue
+
+            p2begin = p2.position[oaxis]
+            p2end = p2begin + p2.position[extent]
+            pbegin = p.position[oaxis]
+            pend = pbegin + p.position[extent]
+
+            if not (p2end < pbegin or pend < p2begin):
+                # parts overlap on an axis, so merge their stripes
+                union(p, p2)
+
+    pd = dict([(p.key, p) for p in parts])
+    reps = part_stripes.values()
+
+    stripe2parts = {}
+    for (p, r) in part_stripes.items():
+        r = find(r)
+        if r not in stripe2parts:
+            stripe2parts[r] = []
+
+        stripe2parts[r].append(pd[p])
+
+    return stripe2parts.values()
+
+def centerx(*parts):
     b = bounds(parts)
     area = [0, b[1], 120, b[3]]
     if not center(parts, area):
         print("centering failed")
 
-def centery(parts):
+def centery(*parts):
     b = bounds(parts)
     area = [b[0], 0, b[2], 120]
     if not center(parts, area):
         print("centering failed")
 
+def centerstripes(parts, axis = 0):
+    s = stripes(parts, axis)
+
+    for stripe in s:
+        if axis == 0:
+            centerx(*stripe)
+        else:
+            centery(*stripe)
+
 def platecmds(plate, border):
-    handlers = {'cx': centerx, 'cy': centery}
+    handlers = {'cx': centerx, 'cy': centery, 'cxs': lambda: centerstripes(plate.parts, 0),
+                'cys': lambda: centerstripes(plate.parts, 1)}
     parts = dict([(chr(i+97), part) for i, part in enumerate(plate.parts)])
 
     while True:
