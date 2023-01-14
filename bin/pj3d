@@ -22,7 +22,7 @@ def load_job(args):
         job = PrintJob.load(fn)
         return job
     else:
-        print("ERROR: Job '{args.jobname}' does not exist, file {fn} missing.", file=sys.stderr)
+        print(f"ERROR: Job '{args.jobname}' does not exist, file {fn} missing.", file=sys.stderr)
         return None
 
 def create(args):
@@ -65,7 +65,7 @@ def add_models(args):
 
     for p in stlfiles:
         print(f"Adding {args.copies} copies of {p}")
-        job.add_model(str(p), args.copies)
+        job.add_model(str(p), args.copies, args.group)
 
     job.compute_unique_stems()
     job.save()
@@ -89,7 +89,9 @@ def ls_models(args):
     print(f"Machine: {job.machine}, Extruder: {job.extruders[0]}, Print Settings: {job.print_settings}")
     for p in job.stlfiles:
         uniq = job.fileprops[p].get('unique', 'NOTSET')
-        print(f"{p}({uniq}): {job.counts[p]} copies, {job.done.get(p, 0)} done.")
+        group = job.fileprops[p].get('group')
+        group = ("/" + group) if group is not None else ''
+        print(f"{p}({uniq}{group}): {job.counts[p]} copies, {job.done.get(p, 0)} done.")
 
     return 0
 
@@ -110,6 +112,7 @@ def pack(args):
 
     for m in stlinfo['files']:
         m['count'] = job.counts[m['name']]
+        m['group'] = job.fileprops[m['name']].get('group', None)
 
     with open(op, "w") as f:
         json.dump(stlinfo, fp=f, indent='  ')
@@ -283,6 +286,7 @@ if __name__ == "__main__":
     ap = sp.add_parser('add', help='Add models to job')
     ap.add_argument("stlfiles", nargs="+", help="STL files to add")
     ap.add_argument("-c", dest='copies', help="Number of copies", type=int, default=1)
+    ap.add_argument("-g", dest='group', help="Set group of part")
     ap.set_defaults(function=add_models)
 
     rp = sp.add_parser('rm', help='Remove models from job')

@@ -41,13 +41,17 @@ class PrintJob:
             del self.fileprops[stlfile]
             del self.counts[stlfile]
 
-    def add_model(self, stlfile, count):
+    def add_model(self, stlfile, count, group = None):
         if stlfile not in self.counts:
             self.stlfiles.append(stlfile)
             self.fileprops[stlfile] = {}
             self.counts[stlfile] = count
         else:
             self.counts[stlfile] += count
+
+        if group is not None:
+            # this means no way to remove group!
+            self.fileprops[stlfile] = {'group': group}
 
         return self.counts[stlfile]
 
@@ -122,7 +126,7 @@ class PrintJob:
         fileprops = op.get('fileprops', {})
 
         for s in op['stlfiles']:
-            pj.add_model(s, op['counts'][s])
+            pj.add_model(s, op['counts'][s], fileprops[s].get('group', None))
             if s in op['done']:
                 pj.mark_done(s, op['done'][s])
 

@@ -7,12 +7,19 @@ import sys
 from rectpack import newPacker
 import rectpack
 import math
+from collections import namedtuple
+
+Rect = namedtuple('Rect', 'key x y z part')
 
 class Part:
     def __init__(self, stlinfo):
         self.stlinfo = stlinfo
         self.name = self.stlinfo['name']
         self.dimint = [round(x) for x in stlinfo['dimensions']]
+
+        # this means that different copies of the same stl cannot be
+        # in different groups when assigned from file
+        self.group = self.stlinfo.get('group', None)
 
     def fits(self, volxyz, borderxy, rotate = 0):
         if rotate != 0:
@@ -57,15 +64,30 @@ def get_rects(partinfo, vol, border):
             for c in range(pp.stlinfo.get('count', 1)):
                 # arguably the 2*border is more conservative
                 # the alternative is to shrink the plate by border as well
-                rects.append(((pp.name, c), pp.dimint[0]+2*border,
-                              pp.dimint[1]+2*border, pp.dimint[2]))
+                rects.append(Rect(key=(pp.name, c),
+                                  x=pp.dimint[0]+2*border,
+                                  y=pp.dimint[1]+2*border,
+                                  z=pp.dimint[2],
+                                  part=pp))
 
     return rects
 
 def group_rects(rects, height_diff = 10):
-    byz = sorted(rects, key=lambda x: x[3])
-
+    # use existing groups when provided
     groups = []
+    pg = {}
+    nogroup = []
+    for r in rects:
+        if r.part.group is not None:
+            if r.part.group not in pg: pg[r.part.group] = []
+            pg[r.part.group].append(r)
+        else:
+            nogroup.append(r)
+
+    groups.extend([x for x in pg.values()])
+
+    # split ungrouped rects by height
+    byz = sorted(nogroup, key=lambda x: x[3])
     lastz = byz[0][3]
     group = []
 
@@ -87,7 +109,7 @@ def pack(rects, volxyz, border, center_packing = True, center_volxyz = None):
     p = newPacker(sort_algo = rectpack.SORT_LSIDE, rotation=False)
     p.add_bin(volxyz[0], volxyz[1], count=float('inf'))
 
-    for nc, x, y, _ in rects:
+    for nc, x, y, _, _ in rects:
         p.add_rect(x, y, nc)
 
     p.pack()
@@ -125,7 +147,7 @@ def tight_vol(group, border, volxyz):
     mh = None
     area = 0
     for p in group:
-        w, h, z = p[1:]
+        w, h, z = p.x, p.y, p.z
         if mw is None or w > mw: mw = w
         if mh is None or h > mh: mh = h
         area += w * h
@@ -152,13 +174,16 @@ def packing_to_plate(packing, groupno):
 
     return plate
 
-def repack_tight(plate, border, volxyz, groupno, center_packing = True):
+def repack_tight(parts, plate, border, volxyz, groupno, center_packing = True):
     rects = []
 
     for obj in plate['parts']:
-        rects.append(((obj['name'], obj['index']),
-                      obj['position'][2] + 2*border,
-                      obj['position'][3] + 2*border, -1))
+        part = parts[obj['name']]
+        rects.append(Rect(key = (obj['name'], obj['index']),
+                          x = obj['position'][2] + 2*border,
+                          y = obj['position'][3] + 2*border,
+                          z = part.dimint[2],
+                          part = part))
 
     tvolxyz = tight_vol(rects, border, volxyz)
 
@@ -214,7 +239,8 @@ if __name__ == "__main__":
         for p in plates:
             plate = packing_to_plate(plates[p], groupno)
             if args.tight:
-                plate = repack_tight(plate, args.border, volxyz, groupno,
+                plate = repack_tight(parts,
+                                     plate, args.border, volxyz, groupno,
                                      center_packing = args.centering)
 
             plate_output["plates"].append(plate)
