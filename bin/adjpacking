@@ -53,8 +53,14 @@ def centerx(parts):
     if not center(parts, area):
         print("centering failed")
 
+def centery(parts):
+    b = bounds(parts)
+    area = [b[0], 0, b[2], 120]
+    if not center(parts, area):
+        print("centering failed")
+
 def platecmds(plate, border):
-    handlers = {'cx': centerx}
+    handlers = {'cx': centerx, 'cy': centery}
     parts = dict([(chr(i+97), part) for i, part in enumerate(plate.parts)])
 
     while True:
