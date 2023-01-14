@@ -135,9 +135,30 @@ def centerstripes(parts, axis = 0):
         else:
             centery(*stripe)
 
+def autocenterstripes(parts):
+    sx = stripes(parts, 0)
+    sy = stripes(parts, 1)
+
+    def compute_area(sl):
+        b = bounds(sl)
+        w = (b[2]-b[0])
+        h = (b[3]-b[1])
+        return w*h
+
+    areax = sum([compute_area(sl) for sl in sx])
+    areay = sum([compute_area(sl) for sl in sy])
+
+    if areax < areay:
+        for sl in sx:
+            centerx(*sl)
+    else:
+        for sl in sy:
+            centery(*sl)
+
 def platecmds(plate, border):
     handlers = {'cx': centerx, 'cy': centery, 'cxs': lambda: centerstripes(plate.parts, 0),
-                'cys': lambda: centerstripes(plate.parts, 1)}
+                'cys': lambda: centerstripes(plate.parts, 1),
+                'cas': lambda: autocenterstripes(plate.parts)}
     parts = dict([(chr(i+97), part) for i, part in enumerate(plate.parts)])
 
     while True:
