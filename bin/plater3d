@@ -135,4 +135,4 @@ if __name__ == "__main__":
         lines = len(header)
         replacement = ''.join(header).replace('\n', '\\n')
         subprocess.run(['sed', '-i', f'1,+{lines}c{replacement}', args.output])
-        print(header)
+        print(''.join(header))
