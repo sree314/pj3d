@@ -16,13 +16,19 @@ import json
 from plater3d.job import PrintJob
 from plater3d.plate import PlatesFile
 
-def load_job(args):
-    fn = PrintJob.name2file(args.jobname)
+def load_job(args, jobname = None):
+    jn = jobname or args.jobname
+
+    # convenience for autocompleters
+    if jn.endswith('/'): jn = jn[:-1]
+    if jn.endswith('.job'): jn = jn[:-4]
+
+    fn = PrintJob.name2file(jn)
     if fn.exists():
         job = PrintJob.load(fn)
         return job
     else:
-        print(f"ERROR: Job '{args.jobname}' does not exist, file {fn} missing.", file=sys.stderr)
+        print(f"ERROR: Job '{jn}' does not exist, file {fn} missing.", file=sys.stderr)
         return None
 
 def create(args):
@@ -39,6 +45,26 @@ def create(args):
     os.mkdir(args.jobname + ".job")
     job.set_print_params(args.machine, args.extruder, args.print_settings)
     job.save(fn)
+    return 0
+
+def createfrom(args):
+    job = load_job(args, jobname=args.oldjob)
+    if job is None: return 1
+
+    fn = PrintJob.name2file(args.jobname)
+    if fn.exists():
+        print(f"ERROR: Cannot create job '{args.jobname}', already exists as {fn}", file=sys.stderr)
+        return 1
+
+    if not os.path.exists(job.print_settings):
+        print(f"WARNING: Print settings file {job.print_settings} does not exist.")
+        print(f"Use setparams to correct this.")
+        return 1
+
+    newjob = PrintJob(args.jobname)
+    os.mkdir(args.jobname + ".job")
+    newjob.set_print_params(job.machine, job.extruders[0], job.print_settings)
+    newjob.save(fn)
     return 0
 
 def setparams(args):
@@ -276,6 +302,10 @@ if __name__ == "__main__":
     cp.add_argument("print_settings", help="Print settings file to use")
     cp.add_argument("extruder", nargs="?", help="Extruder number", default=0, type=int)
     cp.set_defaults(function=create)
+
+    cfp = sp.add_parser('createfrom', help='Create a new job based on an old job')
+    cfp.add_argument("oldjob", help="Old job")
+    cfp.set_defaults(function=createfrom)
 
     setp = sp.add_parser('setparams', help='Set or change parameters of a print job')
     setp.add_argument("machine", help="Machine")
