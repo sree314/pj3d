@@ -35,8 +35,9 @@ if __name__ == "__main__":
 
 
     stlinfo = dict([(i['name'], i) for i in packing["stlinfo"]["files"]])
-    for p in packing["plates"]:
+    for pno, p in enumerate(packing["plates"]):
         d = []
+        print(f"Plate #{pno}")
         for obj in p["parts"]:
             fn = root / obj['name']
             si = stlinfo[obj['name']]
@@ -51,6 +52,7 @@ if __name__ == "__main__":
                 print(f"ERROR: {fn} does not exist, use -p to specify a model path if needed", file=sys.stderr)
                 continue
 
+            print(fn)
             mesh = trimesh.load(fn)
             mesh.visual.face_colors = [255, 0, 0, 255]
             m = pyrender.Mesh.from_trimesh(mesh, smooth=False)
