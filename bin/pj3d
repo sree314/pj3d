@@ -12,6 +12,8 @@ import os
 from pathlib import Path
 import subprocess
 import json
+import glob
+import datetime
 
 from plater3d.job import PrintJob
 from plater3d.plate import PlatesFile
@@ -161,7 +163,7 @@ def vispack(args):
 
     op = job.root / 'plates.json'
     if not op.exists():
-        print("ERROR: {op} does not exist. Run pack before visualization", file=sys.stderr)
+        print(f"ERROR: {op} does not exist. Run pack before visualization", file=sys.stderr)
         return 1
 
     subprocess.run(['vispackings', str(op)])
@@ -173,7 +175,7 @@ def printplate(args):
 
     op = job.root / 'plates.json'
     if not op.exists():
-        print("ERROR: {op} does not exist. Run pack before printing", file=sys.stderr)
+        print(f"ERROR: {op} does not exist. Run pack before printing", file=sys.stderr)
         return 1
 
 
@@ -241,7 +243,7 @@ def markdone(args):
     if args.plate:
         op = job.root / 'plates.json'
         if not op.exists():
-            print("ERROR: Plate file {op} does not exist", file=sys.stderr)
+            print(f"ERROR: Plate file {op} does not exist", file=sys.stderr)
             return 1
 
         pf = PlatesFile.load(op)
@@ -291,6 +293,44 @@ def markdone(args):
     job.save()
     return 0
 
+def gstats(args):
+    job = load_job(args)
+    if job is None: return 1
+    gcodefiles = sorted([str(s) for s in job.filename.parent.glob('*.gcode')])
+
+    if not len(gcodefiles):
+        print("ERROR: No .gcode files found, use print or printpart", file=sys.stderr)
+        return 1
+    try:
+        out = subprocess.check_output(['grep', '-Hi', '^;\(TIME\|Filament used\):'] + gcodefiles)
+        out = out.decode('utf-8').split("\n")
+        lastf = None
+        for l in out:
+            ls = l.strip().split(":", 2)
+            if len(ls) == 0 or len(ls[0]) == 0: break
+
+            if ls[0] != lastf:
+                print(ls[0])
+                lastf = ls[0]
+
+            if ls[1] == ";TIME":
+                de = datetime.timedelta(seconds=int(ls[2]))
+                print("\t", "Time     ", de)
+            elif ls[1] == ";Filament used":
+                print("\t", "Filament", ls[2])
+            else:
+                print(l)
+                print("\t", ls[1], ls[2])
+    except subprocess.CalledProcessError as e:
+        if e.returncode == 1:
+            print("ERROR: No statistics found in the .gcode files", file=sys.stderr)
+            return 0
+        else:
+            print(e.stderr.decode('utf-8'))
+
+        return 1
+
+
 if __name__ == "__main__":
     p = argparse.ArgumentParser(description="Manage a 3D printing job")
     p.add_argument("jobname", help="Job name. Must be usable as a filename.")
@@ -339,6 +379,9 @@ if __name__ == "__main__":
 
     printp = sp.add_parser('print', help='Print plates')
     printp.set_defaults(function=printplate)
+
+    statsp = sp.add_parser('gstats', help='Display GCODE statistics')
+    statsp.set_defaults(function=gstats)
 
     markdonep = sp.add_parser('done', help='Mark completed prints, by part')
     markdonep.add_argument('plate', nargs="*", type=int, metavar="PLATE", help="Update only parts on PLATE")
