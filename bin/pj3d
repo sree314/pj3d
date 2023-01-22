@@ -294,6 +294,17 @@ def markdone(args):
     return 0
 
 def gstats(args):
+    def read_gcode_header(f):
+        with open(f, "r") as ff:
+            hdr = []
+            for l in ff:
+                if l[0] == ";":
+                    hdr.append(l.strip())
+                else:
+                    break
+
+            return hdr
+
     job = load_job(args)
     if job is None: return 1
     gcodefiles = sorted([str(s) for s in job.filename.parent.glob('*.gcode')])
@@ -301,35 +312,37 @@ def gstats(args):
     if not len(gcodefiles):
         print("ERROR: No .gcode files found, use print or printpart", file=sys.stderr)
         return 1
-    try:
-        out = subprocess.check_output(['grep', '-Hi', '^;\(TIME\|Filament used\):'] + gcodefiles)
-        out = out.decode('utf-8').split("\n")
-        lastf = None
-        for l in out:
+
+    volxyz = [120,120,120] # TODO
+    error = False
+    for fl in gcodefiles:
+        print(fl)
+        hdr = read_gcode_header(fl)
+        for l in hdr:
             ls = l.strip().split(":", 2)
-            if len(ls) == 0 or len(ls[0]) == 0: break
 
-            if ls[0] != lastf:
-                print(ls[0])
-                lastf = ls[0]
-
-            if ls[1] == ";TIME":
-                de = datetime.timedelta(seconds=int(ls[2]))
+            if ls[0] == ";TIME":
+                de = datetime.timedelta(seconds=int(ls[1]))
                 print("\t", "Time     ", de)
-            elif ls[1] == ";Filament used":
-                print("\t", "Filament", ls[2])
+            elif ls[0] == ";Filament used":
+                print("\t", "Filament", ls[1])
+            elif ls[0].startswith(';MIN'):
+                p = float(ls[1])
+                print("\t", ls[0][1:], ls[1], "** ERROR! **" if p < 0 else "")
+                error = error or p < 0
+            elif ls[0].startswith(';MAX'):
+                p = float(ls[1])
+                dim = "XYZ".index(ls[0][4])
+                print("\t", ls[0][1:], ls[1], "** ERROR! **" if p > volxyz[dim] else "")
+                error = error or p > volxyz[dim]
+            elif ls[0] == ';FLAVOR':
+                pass
             else:
-                print(l)
-                print("\t", ls[1], ls[2])
-    except subprocess.CalledProcessError as e:
-        if e.returncode == 1:
-            print("ERROR: No statistics found in the .gcode files", file=sys.stderr)
-            return 0
-        else:
-            print(e.stderr.decode('utf-8'))
+                print("\t", ls[0], ls[1])
+    if error:
+        print("*** ERRORS WERE DETECTED IN GCODE ***")
 
-        return 1
-
+    return 0
 
 if __name__ == "__main__":
     p = argparse.ArgumentParser(description="Manage a 3D printing job")
