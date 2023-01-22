@@ -6,6 +6,9 @@ class AppImage2:
         self.appimage = appimage
         self._process = None
 
+    def __del__(self):
+        self.unmount()
+
     def mount(self):
         if self._process is None:
             self._process = subprocess.Popen([self.appimage, "--appimage-mount"], bufsize = 0, stdout = subprocess.PIPE)
@@ -24,5 +27,6 @@ class AppImage2:
         if self._process is not None:
             self._process.stdout.close()
             self._process.terminate()
-            self._process.wait()
+            #print("waiting")
+            #self._process.wait()
             self._process = None
