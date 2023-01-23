@@ -54,12 +54,12 @@ def get_parts(stlinfo):
 
     return out
 
-def get_rects(partinfo, vol, border):
+def get_rects(partinfo, vol, border, plateborder):
     rects = []
     for p in partinfo:
         pp = partinfo[p]
-        if not pp.fits(vol, border):
-            print(f"{pp.name}: Part does not fit, dimensions={pp.dimint}, border={border}, volume={vol}, skipping.")
+        if not pp.fits(vol, border + plateborder):
+            print(f"{pp.name}: Part does not fit, dimensions={pp.dimint}, border={border}, plateborder={plateborder}, volume={vol}, skipping.")
         else:
             for c in range(pp.stlinfo.get('count', 1)):
                 # arguably the 2*border is more conservative
@@ -105,9 +105,9 @@ def group_rects(rects, height_diff = 10):
 
     return groups
 
-def pack(rects, volxyz, border, center_packing = True, center_volxyz = None):
+def pack(rects, volxyz, border, plateborder = 0, center_packing = True, center_volxyz = None):
     p = newPacker(sort_algo = rectpack.SORT_LSIDE, rotation=False)
-    p.add_bin(volxyz[0], volxyz[1], count=float('inf'))
+    p.add_bin(volxyz[0] - 2*plateborder, volxyz[1] - 2*plateborder, count=float('inf'))
 
     for nc, x, y, _, _ in rects:
         p.add_rect(x, y, nc)
@@ -128,17 +128,22 @@ def pack(rects, volxyz, border, center_packing = True, center_volxyz = None):
         plate_bounds[2] = max(x+w, plate_bounds[2]) if plate_bounds[2] is not None else x+w
         plate_bounds[3] = max(y+h, plate_bounds[3]) if plate_bounds[3] is not None else y+h
 
-
     if center_packing:
         if center_volxyz is None: center_volxyz = volxyz
         for b in plates:
             bounds = plates[b]['_bounds']
-            center_x = (center_volxyz[0] - (bounds[2] - bounds[0])) // 2
-            center_y = (center_volxyz[1] - (bounds[3] - bounds[1])) // 2
+            center_x = (center_volxyz[0] - plateborder - (bounds[2] - bounds[0])) // 2
+            center_y = (center_volxyz[1] - plateborder - (bounds[3] - bounds[1])) // 2
             for p in plates[b]:
                 if p == '_bounds': continue
                 x, y, w, h = plates[b][p]
-                plates[b][p] = (x + center_x, y + center_y, w, h)
+                plates[b][p] = (x + center_x + plateborder, y + center_y + plateborder, w, h)
+    elif plateborder > 0:
+        for b in plates:
+            for p in plates[b]:
+                if p == '_bounds': continue
+                x, y, w, h = plates[b][p]
+                plates[b][p] = (x + plateborder, y + plateborder, w, h)
 
     return plates
 
@@ -174,7 +179,7 @@ def packing_to_plate(packing, groupno):
 
     return plate
 
-def repack_tight(parts, plate, border, volxyz, groupno, center_packing = True):
+def repack_tight(parts, plate, border, plateborder, volxyz, groupno, center_packing = True):
     rects = []
 
     for obj in plate['parts']:
@@ -187,12 +192,16 @@ def repack_tight(parts, plate, border, volxyz, groupno, center_packing = True):
 
     tvolxyz = tight_vol(rects, border, volxyz)
 
-    growx = (volxyz[0] - tvolxyz[0] + border-1) // border
-    growy = (volxyz[1] - tvolxyz[1] + border-1) // border
+    growx = (volxyz[0] - 2*plateborder - tvolxyz[0] + border-1) // border
+    growy = (volxyz[1] - 2*plateborder - tvolxyz[1] + border-1) // border
+
+    # TODO
+    if growx <= 0: growx = 1
+    if growy <= 0: growy = 1
 
     tries = 1
     while True:
-        pp = pack(rects, tvolxyz, border, center_packing, center_volxyz = volxyz)
+        pp = pack(rects, tvolxyz, border, plateborder, center_packing, center_volxyz = volxyz)
         if len(pp) == 1:
             # TODO: some metric of improvement?
             print(f"Tightening finished after {tries} attempts.")
@@ -208,6 +217,7 @@ if __name__ == "__main__":
     p.add_argument("stlinfo", help="STL information (JSON file)")
     p.add_argument("-b", dest="border", type=int, help="Border (mm)", default=3)
     p.add_argument("--volxyz", help="Printer volume", default="120")
+    p.add_argument("--pb", dest="plateborder", help="Plate border (usually for first layer skirt/brim/etc.)", default=3, type=int)
     p.add_argument("--max-height-diff",
                    help="Maximum height difference between parts on the same plate", default=15, type=int)
     p.add_argument("-o", dest="output", help="Output file")
@@ -224,7 +234,7 @@ if __name__ == "__main__":
         d = json.load(fp=f)
 
     parts = get_parts(d)
-    rects = get_rects(parts, volxyz, args.border)
+    rects = get_rects(parts, volxyz, args.border, args.plateborder)
 
     plate_output = {"type": 'plate',
                     "stlinfo": d,
@@ -235,12 +245,13 @@ if __name__ == "__main__":
                     }
 
     for groupno, group in enumerate(group_rects(rects, height_diff = args.max_height_diff)):
-        plates = pack(group, volxyz, args.border, center_packing = args.centering)
+        plates = pack(group, volxyz, args.border, args.plateborder, center_packing = args.centering)
         for p in plates:
             plate = packing_to_plate(plates[p], groupno)
             if args.tight:
                 plate = repack_tight(parts,
-                                     plate, args.border, volxyz, groupno,
+                                     plate, args.border, args.plateborder,
+                                     volxyz, groupno,
                                      center_packing = args.centering)
 
             plate_output["plates"].append(plate)
