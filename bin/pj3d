@@ -14,6 +14,7 @@ import subprocess
 import json
 import glob
 import datetime
+import re
 
 from plater3d.job import PrintJob
 from plater3d.plate import PlatesFile
@@ -306,9 +307,18 @@ def gstats(args):
 
             return hdr
 
+    # TODO: mark plates as done
+    def is_plate(fname):
+        m = plate_re.match(fname.name)
+        if m is not None:
+            return m.group('plate')
+        return False
+
     job = load_job(args)
+    plate_re = re.compile(f"^{job.name}\\.(?P<plate>\\d+)\\.gcode$")
+
     if job is None: return 1
-    gcodefiles = sorted([str(s) for s in job.filename.parent.glob('*.gcode')])
+    gcodefiles = sorted(job.filename.parent.glob('*.gcode'), key=lambda x: x.name)
 
     if not len(gcodefiles):
         print("ERROR: No .gcode files found, use print or printpart", file=sys.stderr)
@@ -316,32 +326,37 @@ def gstats(args):
 
     volxyz = [120,120,120] # TODO
     error = False
+    prefix = "\t"
     for fl in gcodefiles:
-        print(fl)
+        if not args.showfile:
+            print(str(fl))
+        else:
+            prefix = str(fl)
+        print(is_plate(fl))
         hdr = read_gcode_header(fl)
         for l in hdr:
             ls = l.strip().split(":", 2)
 
             if ls[0] == ";TIME":
                 de = datetime.timedelta(seconds=int(ls[1]))
-                print("\t", "Time     ", de)
+                print(prefix, "Time     ", de, ls[1])
             elif ls[0] == ";Filament used":
-                print("\t", "Filament", ls[1])
+                print(prefix, "Filament", ls[1])
             elif ls[0].startswith(';MIN'):
                 p = float(ls[1])
-                print("\t", ls[0][1:], ls[1], "** ERROR! **" if p < 0 else "")
+                print(prefix, ls[0][1:], ls[1], "** ERROR! **" if p < 0 else "")
                 error = error or p < 0
             elif ls[0].startswith(';MAX'):
                 p = float(ls[1])
                 dim = "XYZ".index(ls[0][4])
-                print("\t", ls[0][1:], ls[1], "** ERROR! **" if p > volxyz[dim] else "")
+                print(prefix, ls[0][1:], ls[1], "** ERROR! **" if p > volxyz[dim] else "")
                 error = error or p > volxyz[dim]
             elif ls[0] == ';FLAVOR':
                 pass
             else:
-                print("\t", ls[0], ls[1])
+                print(prefix, ls[0], ls[1])
     if error:
-        print("*** ERRORS WERE DETECTED IN GCODE ***")
+        print(prefix, "*** ERRORS WERE DETECTED IN GCODE ***")
 
     return 0
 
@@ -396,6 +411,7 @@ if __name__ == "__main__":
     printp.set_defaults(function=printplate)
 
     statsp = sp.add_parser('gstats', help='Display GCODE statistics')
+    statsp.add_argument("-f", action="store_true", dest="showfile", help="Show filename on every line")
     statsp.set_defaults(function=gstats)
 
     markdonep = sp.add_parser('done', help='Mark completed prints, by part')
