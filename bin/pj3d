@@ -196,6 +196,18 @@ def printplate(args):
     r = subprocess.run(['printplate'] + cmds)
     return r.returncode
 
+def adjpack(args):
+    job = load_job(args)
+    if job is None: return 1
+
+    op = job.root / 'plates.json'
+    if not op.exists():
+        print(f"ERROR: {op} does not exist. Run pack before adjpack.", file=sys.stderr)
+        return 1
+
+    r = subprocess.run(['adjpacking', op])
+    return r.returncode
+
 def printpart(args):
     job = load_job(args)
     if job is None: return 1
@@ -422,6 +434,9 @@ if __name__ == "__main__":
     printpartp.add_argument('stlfiles', nargs="*", help='STL Files to print')
     printpartp.add_argument("--all", action="store_true", help="Print all parts")
     printpartp.set_defaults(function=printpart)
+
+    adjpackp = sp.add_parser('adjpack', help='Adjust plate packing manually')
+    adjpackp.set_defaults(function=adjpack)
 
     args = p.parse_args()
 
