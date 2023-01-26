@@ -120,8 +120,11 @@ def rm_models(args):
 
     stlfiles = [Path(x).resolve() for x in args.stlfiles]
     for p in stlfiles:
-        print(f"Removing {args.copies} copies of {p}")
-        job.remove_model(str(p), args.copies)
+        if str(p) in job.counts:
+            print(f"Removing {args.copies} copies of {p}")
+            job.remove_model(str(p), args.copies)
+        else:
+            print(f"ERROR: {p} does not found in the job")
 
     job.save()
     return 0
@@ -167,6 +170,7 @@ def pack(args):
     if args.plateborder: cmds.extend(("--pb", args.plateborder))
     if not args.no_tight: cmds.append("--tight")
     if args.max_height_diff: cmds.extend(("--max-height-diff", args.max_height_diff))
+    if args.purge: cmds.extend(("--purge", args.purge))
     cmds.append(op)
 
     ppout = job.root / 'plates.json'
@@ -429,6 +433,7 @@ if __name__ == "__main__":
     packp.add_argument("--volxyz", dest="volxyz", help="Comma-separated 3D volume")
     packp.add_argument("--mhd", dest="max_height_diff", help="Maximum allowable height difference between models in plate")
     packp.add_argument("--no-tight", dest="no_tight", help="Do not produce a 'tight' packing", action='store_true')
+    packp.add_argument("--purge", dest="purge", help="Add a purge line", choices=["x", "y"])
     packp.set_defaults(function=pack)
 
     visp = sp.add_parser('vispack', help='Visualize packed plates')

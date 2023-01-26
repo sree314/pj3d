@@ -246,6 +246,10 @@ if __name__ == "__main__":
 
     for groupno, group in enumerate(group_rects(rects, height_diff = args.max_height_diff)):
         plates = pack(group, volxyz, args.border, args.plateborder, center_packing = args.centering)
+        if len(plates) == 0:
+            print("ERROR: packing failed. Try reducing border (-b) or plateborder (--pb).")
+            break
+
         for p in plates:
             plate = packing_to_plate(plates[p], groupno)
             if args.tight:
