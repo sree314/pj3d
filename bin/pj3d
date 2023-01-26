@@ -67,6 +67,20 @@ def createfrom(args):
     newjob = PrintJob(args.jobname)
     os.mkdir(args.jobname + ".job")
     newjob.set_print_params(job.machine, job.extruders[0], job.print_settings)
+
+    if args.importfiles:
+        for p in job.stlfiles:
+            if not Path(p).exists():
+                print(f"ERROR: {p} does not exist.")
+                return 1
+
+        for p in job.stlfiles:
+            print(f"Adding {job.counts[p]} copies of {p}")
+            newjob.add_model(str(p), job.counts[p], job.fileprops[p].get('group', None))
+            u = job.fileprops[p].get('unique', None)
+            if u:
+                newjob.fileprops[p]['unique'] = u
+
     newjob.save(fn)
     return 0
 
@@ -386,6 +400,7 @@ if __name__ == "__main__":
 
     cfp = sp.add_parser('createfrom', help='Create a new job based on an old job')
     cfp.add_argument("oldjob", help="Old job")
+    cfp.add_argument("--importfiles", action="store_true", help="Import files")
     cfp.set_defaults(function=createfrom)
 
     setp = sp.add_parser('setparams', help='Set or change parameters of a print job')
