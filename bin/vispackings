@@ -12,6 +12,7 @@ import numpy as np
 if __name__ == "__main__":
     p = argparse.ArgumentParser(description="Visualize packed plates")
     p.add_argument("packing", help='JSON file containing packing info')
+    p.add_argument("plates", nargs="*")
     p.add_argument("-p", dest="modelpath", help="Path for object files", default=".")
 
     args = p.parse_args()
@@ -35,7 +36,10 @@ if __name__ == "__main__":
 
 
     stlinfo = dict([(i['name'], i) for i in packing["stlinfo"]["files"]])
+    visplates = set([int(x) for x in args.plates]) if args.plates else list(range(len(packing["plates"])))
+
     for pno, p in enumerate(packing["plates"]):
+        if pno not in visplates: continue
         d = []
         print(f"Plate #{pno}")
         for obj in p["parts"]:

@@ -186,7 +186,7 @@ def vispack(args):
         print(f"ERROR: {op} does not exist. Run pack before visualization", file=sys.stderr)
         return 1
 
-    subprocess.run(['vispackings', str(op)])
+    subprocess.run(['vispackings', str(op)] + args.plates)
     return 0
 
 def printplate(args):
@@ -437,6 +437,7 @@ if __name__ == "__main__":
     packp.set_defaults(function=pack)
 
     visp = sp.add_parser('vispack', help='Visualize packed plates')
+    visp.add_argument('plates', nargs="*", help='Show only specific plates')
     visp.set_defaults(function=vispack)
 
     printp = sp.add_parser('print', help='Print plates')
