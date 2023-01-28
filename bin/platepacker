@@ -217,8 +217,9 @@ def pack(rects, volxyz, border, plateborder = 0, center_packing = True, center_v
         if center_volxyz is None: center_volxyz = volxyz
         for b in plates:
             bounds = plates[b]['_bounds']
-            center_x = (center_volxyz[0] - 2*plateborder - (bounds[2] - bounds[0])) // 2
-            center_y = (center_volxyz[1] - 2*plateborder - (bounds[3] - bounds[1])) // 2
+            # this is not 2*plateborder
+            center_x = (center_volxyz[0] - plateborder - (bounds[2] - bounds[0])) // 2
+            center_y = (center_volxyz[1] - plateborder - (bounds[3] - bounds[1])) // 2
             for p in plates[b]:
                 x, y, w, h = plates[b][p]
                 if p == '_bounds':
