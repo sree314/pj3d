@@ -8,8 +8,10 @@ from rectpack import newPacker
 import rectpack
 import math
 from collections import namedtuple
+from pathlib import Path
 
 Rect = namedtuple('Rect', 'key x y z part')
+DataDir = Path(__file__).parent.parent / 'data'
 
 class Part:
     def __init__(self, stlinfo):
@@ -75,6 +77,9 @@ def get_rects(partinfo, vol, border, plateborder):
 def group_rects(rects, height_diff = 10):
     # use existing groups when provided
     groups = []
+
+    if len(rects) == 0: return groups
+
     pg = {}
     nogroup = []
     for r in rects:
@@ -88,22 +93,99 @@ def group_rects(rects, height_diff = 10):
 
     # split ungrouped rects by height
     byz = sorted(nogroup, key=lambda x: x[3])
-    lastz = byz[0][3]
-    group = []
+    if len(byz):
+        lastz = byz[0][3]
+        group = []
 
-    for r in byz:
-        z = r[3]
-        if (z - lastz) > height_diff:
+        for r in byz:
+            z = r[3]
+            if (z - lastz) > height_diff:
+                groups.append(group)
+                group = []
+                lastz = z
+
+            group.append(r)
+
+        if len(group):
             groups.append(group)
-            group = []
-            lastz = z
-
-        group.append(r)
-
-    if len(group):
-        groups.append(group)
 
     return groups
+
+def add_purge(plates, volxyz, border, plateborder, purge, purgelines):
+    assert purgelines is not None
+
+    purgefile = str((DataDir / f'purge{purge}.stl').resolve())
+    purgerect = get_rects({purgefile: purgelines[purgefile]},
+                          volxyz, 0, plateborder)
+    if len(purgerect) == 0:
+        print(f"ERROR when getting rectangle for purge{purge}.stl")
+        return []
+
+    purgerect = purgerect[0]
+    if purge == "x":
+        boundindex = 1
+    else:
+        boundindex = 2
+
+    for plateno, plate in enumerate(plates):
+        minx = volxyz[0]
+        miny = volxyz[1]
+        maxw = 0
+        maxh = 0
+
+        for part in plate['parts']:
+            minx = min(minx, part['position'][0])
+            miny = min(miny, part['position'][1])
+            maxw = max(maxw, part['position'][2])
+            maxh = max(maxh, part['position'][3])
+
+        purgex = max(minx - 15, plateborder)
+        purgey = max(miny - 15, plateborder)
+
+        if purge == "x":
+            # TODO: maxh and maxw could be stacked?
+            if purgey + purgerect.y + border + maxh + plateborder > volxyz[1]:
+                print(f"ERROR: purge cannot be applied in {purge} direction, out of room on plate {plateno}.")
+                return []
+        elif purge == "y":
+            if purgex + purgerect.x + border + maxw + plateborder > volxyz[0]:
+                print(f"ERROR: purge cannot be applied in {purge} direction, out of room on plate {plateno}.")
+                return []
+
+        plate["parts"].append({'name': purgefile,
+                               'index': 0,
+                               'group': 0,
+                               'position': [purgex, purgey, purgerect.x, purgerect.y]})
+
+        tx = 0
+        ty = 0
+        if purge == "x" and miny < purgerect.y + border:
+            ty = (purgerect.y + border) - miny
+        elif purge == "y" and minx < purgerect.x + border:
+            tx = (purgerect.x + border) - minx
+
+        bounds = plate['bounds']
+
+        if purge == "x":
+            # expand bounds
+            plate["bounds"] = (purgex, purgey,
+                               max(bounds[2], purgerect.x),
+                               bounds[3] + ty)
+        else:
+            plate["bounds"] = (purgex, purgey,
+                               bounds[2] + tx,
+                               max(bounds[3], purgerect.y))
+
+        for p in plate["parts"]:
+            if p['name'] == purgefile: continue
+
+            x, y, w, h = p["position"]
+            x += tx
+            y += ty
+            p["position"] = [x, y, w, h]
+
+    return plates
+
 
 def pack(rects, volxyz, border, plateborder = 0, center_packing = True, center_volxyz = None):
     p = newPacker(sort_algo = rectpack.SORT_LSIDE, rotation=False)
@@ -120,6 +202,8 @@ def pack(rects, volxyz, border, plateborder = 0, center_packing = True, center_v
         if b not in plates: plates[b] = {'_bounds': [None, None, None, None]}
         plates[b][nc] = (x+border, y+border, w-2*border, h-2*border)
 
+        x, y, w, h = plates[b][nc]
+        # bounds tracks x1, y1, x2, y2
         plate_bounds = plates[b]['_bounds']
 
         plate_bounds[0] = min(x, plate_bounds[0]) if plate_bounds[0] is not None else x
@@ -128,24 +212,30 @@ def pack(rects, volxyz, border, plateborder = 0, center_packing = True, center_v
         plate_bounds[2] = max(x+w, plate_bounds[2]) if plate_bounds[2] is not None else x+w
         plate_bounds[3] = max(y+h, plate_bounds[3]) if plate_bounds[3] is not None else y+h
 
+
     if center_packing:
         if center_volxyz is None: center_volxyz = volxyz
         for b in plates:
             bounds = plates[b]['_bounds']
-            center_x = (center_volxyz[0] - plateborder - (bounds[2] - bounds[0])) // 2
-            center_y = (center_volxyz[1] - plateborder - (bounds[3] - bounds[1])) // 2
+            center_x = (center_volxyz[0] - 2*plateborder - (bounds[2] - bounds[0])) // 2
+            center_y = (center_volxyz[1] - 2*plateborder - (bounds[3] - bounds[1])) // 2
             for p in plates[b]:
-                if p == '_bounds': continue
                 x, y, w, h = plates[b][p]
-                plates[b][p] = (x + center_x + plateborder, y + center_y + plateborder, w, h)
+                if p == '_bounds':
+                    plates[b][p] = (x + center_x, y + center_y, w + center_x, h + center_y)
+                else:
+                    plates[b][p] = (x + center_x, y + center_y, w, h)
     elif plateborder > 0:
         for b in plates:
             for p in plates[b]:
-                if p == '_bounds': continue
                 x, y, w, h = plates[b][p]
-                plates[b][p] = (x + plateborder, y + plateborder, w, h)
+                if p == '_bounds':
+                    plates[b][p] = (x + plateborder, y + plateborder, w + plateborder, h + plateborder)
+                else:
+                    plates[b][p] = (x + plateborder, y + plateborder, w, h)
 
     return plates
+
 
 def tight_vol(group, border, volxyz):
     mw = None
@@ -223,6 +313,7 @@ if __name__ == "__main__":
     p.add_argument("-o", dest="output", help="Output file")
     p.add_argument("--no-centering", dest="centering", help="Do not center packings", action="store_false")
     p.add_argument("--tight", dest="tight", help="Produce a 'tight' packing", action="store_true")
+    p.add_argument("--purge", dest="purge", help="Add a purge line in X or Y direction", choices=["x", "y"])
 
     args = p.parse_args()
 
@@ -234,6 +325,15 @@ if __name__ == "__main__":
         d = json.load(fp=f)
 
     parts = get_parts(d)
+    purgelines = None
+    if args.purge:
+        with open(DataDir / 'purge_stlinfo.json', 'r') as f:
+            pj = json.load(fp=f)
+            for f in pj['files']:
+                f['name'] = str((DataDir / f['name']).resolve())
+            d['files'].extend(pj['files'])
+            purgelines = get_parts(pj)
+
     rects = get_rects(parts, volxyz, args.border, args.plateborder)
 
     plate_output = {"type": 'plate',
@@ -259,6 +359,12 @@ if __name__ == "__main__":
                                      center_packing = args.centering)
 
             plate_output["plates"].append(plate)
+
+    if args.purge:
+        print(f'{len(plate_output["plates"])} produced, adding purge lines')
+        plates = add_purge(plate_output['plates'], volxyz, args.border,
+                           args.plateborder, args.purge, purgelines)
+        plate_output["plates"] = plates
 
     if args.output:
         with open(args.output, "w") as f:
