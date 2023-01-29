@@ -42,6 +42,22 @@ def write_settings(settings, filename):
             else:
                 print(f"{k}=\"{v}\"", file=f)
 
+def read_settings_log(sf, firstline, markerpos, marker):
+    out = [firstline[p+len(marker)-2:].strip()]
+
+    # every cura setting has a k="v" format in the log file
+    in_str = out[-1] != '"'
+    while in_str:
+        try:
+            l = next(sf)
+        except StopIteration:
+            break
+
+        l = l.strip()
+        out.append(r"\n" + l[markerpos:])
+        in_str = l[-1] != '"'
+
+    return "".join(out)
 
 if __name__ == "__main__":
     p = argparse.ArgumentParser(description="Parse the CuraEngine output and extract settings actually used")
@@ -56,7 +72,7 @@ if __name__ == "__main__":
             marker = "[WARNING]  -s"
             p = l.find(marker)
             if p != -1:
-                settings.append(l[p+len(marker)-2:])
+                settings.append(read_settings_log(f, l, p, marker))
 
     if len(settings):
         print(f"Found {len(settings)}, processing last one")

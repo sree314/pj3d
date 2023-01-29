@@ -34,6 +34,9 @@ class FileSettings:
                 if m:
                     k = m.group('setting')
                     v = m.group('value')
+                    if r"\n" in v:
+                        v = v.replace(r"\n", "\n")
+
                     out.append((k, v))
                 else:
                     raise ValueError(f"Invalid setting: {l}")
