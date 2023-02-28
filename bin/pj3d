@@ -253,6 +253,12 @@ def printpart(args):
     else:
         parts = [Path(x) for x in job.stlfiles]
 
+
+    if args.rotxyz:
+        rotxyz = ["--rotxyz", args.rotxyz]
+    else:
+        rotxyz = []
+
     for part in parts:
         cmds = ['--slicer-binary', 'CuraEngine', '--appimage']
         cmds.extend(("-s", str(job.print_settings)))
@@ -261,6 +267,7 @@ def printpart(args):
         cmds.append(str(part))
         #TODO: this can be overwritten!
         cmds.extend(("-o", str(job.root / (part.stem + '.gcode'))))
+        cmds.extend(rotxyz)
 
         r = subprocess.run(['plater3d'] + cmds)
         if r.returncode != 0:
@@ -454,6 +461,7 @@ if __name__ == "__main__":
     printpartp = sp.add_parser('printpart', help='Print part')
     printpartp.add_argument('stlfiles', nargs="*", help='STL Files to print')
     printpartp.add_argument("--all", action="store_true", help="Print all parts")
+    printpartp.add_argument("--rotxyz", help="Specify rotations for x,y,z for each object")
     printpartp.set_defaults(function=printpart)
 
     adjpackp = sp.add_parser('adjpack', help='Adjust plate packing manually')
