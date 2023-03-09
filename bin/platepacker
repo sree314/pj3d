@@ -203,6 +203,7 @@ def pack(rects, volxyz, border, plateborder = 0, center_packing = True, center_v
         plates[b][nc] = (x+border, y+border, w-2*border, h-2*border)
 
         x, y, w, h = plates[b][nc]
+
         # bounds tracks x1, y1, x2, y2
         plate_bounds = plates[b]['_bounds']
 
@@ -217,9 +218,12 @@ def pack(rects, volxyz, border, plateborder = 0, center_packing = True, center_v
         if center_volxyz is None: center_volxyz = volxyz
         for b in plates:
             bounds = plates[b]['_bounds']
-            # this is not 2*plateborder
-            center_x = (center_volxyz[0] - plateborder - (bounds[2] - bounds[0])) // 2
-            center_y = (center_volxyz[1] - plateborder - (bounds[3] - bounds[1])) // 2
+            center_x = (center_volxyz[0] - 2*plateborder - (bounds[2] - bounds[0])) // 2 + plateborder
+            center_y = (center_volxyz[1] - 2*plateborder - (bounds[3] - bounds[1])) // 2 + plateborder
+
+            center_x -= bounds[0]
+            center_y -= bounds[1]
+
             for p in plates[b]:
                 x, y, w, h = plates[b][p]
                 if p == '_bounds':
