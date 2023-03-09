@@ -46,7 +46,8 @@ def read_settings_log(sf, firstline, markerpos, marker):
     out = [firstline[p+len(marker)-2:].strip()]
 
     # every cura setting has a k="v" format in the log file
-    in_str = out[-1] != '"'
+    in_str = out[-1][-1] != '"'
+    stook = False
     while in_str:
         try:
             l = next(sf)
@@ -56,7 +57,10 @@ def read_settings_log(sf, firstline, markerpos, marker):
         l = l.strip()
         out.append(r"\n" + l[markerpos:])
         in_str = l[-1] != '"'
-
+        stook = "Slicing took" in l
+        #print(in_str, stook, l[-1], out[-1], out[-2])
+        assert not stook
+    #print("")
     return "".join(out)
 
 if __name__ == "__main__":
