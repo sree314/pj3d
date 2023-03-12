@@ -20,8 +20,9 @@ if __name__ == "__main__":
     with open(args.packing, "r") as f:
         packing = json.load(fp=f)
 
+    volxyz = packing['volxyz']
     cam = pyrender.OrthographicCamera(1, 1, zfar = 200)
-    nc = pyrender.Node(camera=cam, translation=[60,60,120])
+    nc = pyrender.Node(camera=cam, translation=[volxyz[0]//2,volxyz[1]//2,volxyz[2]])
     scene = pyrender.Scene(ambient_light=[0.02, 0.02, 0.02],
                            bg_color=[1.0, 1.0, 1.0])
 
@@ -31,7 +32,7 @@ if __name__ == "__main__":
     printer.visual.face_colors = [128, 128, 128, 128]
 
     pm = pyrender.Mesh.from_trimesh(printer, smooth=False)
-    npm = pyrender.Node(mesh=pm, translation=[60,60,0])
+    npm = pyrender.Node(mesh=pm, translation=[volxyz[0]//2,volxyz[1]//2,0])
     scene.add_node(npm)
 
 
@@ -66,7 +67,7 @@ if __name__ == "__main__":
             scene.add_node(nm)
             d.append(nm)
 
-        pyrender.Viewer(scene, use_direct_lighting=True, view_center=[60,60,0],
+        pyrender.Viewer(scene, use_direct_lighting=True, view_center=[volxyz[0]//2,volxyz[1]//2,0],
                         use_perspective_cam = True) # TODO: perspective cam
 
         for n in d:
