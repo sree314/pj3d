@@ -361,7 +361,15 @@ def gstats(args):
         print("ERROR: No .gcode files found, use print or printpart", file=sys.stderr)
         return 1
 
-    volxyz = [120,120,120] # TODO
+    platefile = job.root / 'plates.json'
+    if platefile.exists():
+        pf = PlatesFile.load(platefile)
+        volxyz = pf.volxyz
+    else:
+        #TODO: specify using --volxyz
+        print("WARNING: ", platefile, "not found. Using 120x120x120. Errors may be incorrect.")
+        volxyz = [120,120,120] # TODO
+
     error = False
     prefix = "\t"
     for fl in gcodefiles:
