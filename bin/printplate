@@ -124,6 +124,8 @@ if __name__ == "__main__":
     else:
         only = range(0,len(packing["plates"]))
 
+    volxyz = packing["volxyz"]
+
     for pno in only:
         print(f"Printing plate {pno}", file=sys.stderr)
         p = packing["plates"][pno]
@@ -144,8 +146,8 @@ if __name__ == "__main__":
             # for some reason, cura aligns 0,0 of the plate to be in the center
             # we need to adjust for that
 
-            xlatcoord = [xlatcoord[0] - 60,
-                         xlatcoord[1] - 60,
+            xlatcoord = [xlatcoord[0] - volxyz[0]//2,
+                         xlatcoord[1] - volxyz[1]//2,
                          xlatcoord[2]]
 
             if not fn.exists():
