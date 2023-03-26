@@ -2,6 +2,7 @@
 
 import argparse
 from plater3d.plate import PlatesFile
+import readchar
 
 def vistext(plate, w=120, h=120, res = 5):
     gridx = (w + res - 1) // res
@@ -114,28 +115,28 @@ def stripes(parts, axis=0):
 
     return stripe2parts.values()
 
-def centerx(*parts):
+def centerx(*parts, w=120):
     b = bounds(parts)
-    area = [0, b[1], 120, b[3]]
+    area = [0, b[1], w, b[3]]
     if not center(parts, area):
         print("centering failed")
 
-def centery(*parts):
+def centery(*parts, h=120):
     b = bounds(parts)
-    area = [b[0], 0, b[2], 120]
+    area = [b[0], 0, b[2], h]
     if not center(parts, area):
         print("centering failed")
 
-def centerstripes(parts, axis = 0):
+def centerstripes(parts, axis = 0, w = 120, h = 120):
     s = stripes(parts, axis)
 
     for stripe in s:
         if axis == 0:
-            centerx(*stripe)
+            centerx(*stripe, w = w)
         else:
-            centery(*stripe)
+            centery(*stripe, h = h)
 
-def autocenterstripes(parts):
+def autocenterstripes(parts, w = 120, h = 120):
     sx = stripes(parts, 0)
     sy = stripes(parts, 1)
 
@@ -150,24 +151,72 @@ def autocenterstripes(parts):
 
     if areax < areay:
         for sl in sx:
-            centerx(*sl)
+            centerx(*sl, w = w)
     else:
         for sl in sy:
-            centery(*sl)
+            centery(*sl, h = h)
 
-def platecmds(plate, border):
-    handlers = {'cx': centerx, 'cy': centery, 'cxs': lambda: centerstripes(plate.parts, 0),
-                'cys': lambda: centerstripes(plate.parts, 1),
-                'cas': lambda: autocenterstripes(plate.parts)}
+def mv(plate, res, *parts, w = 120, h = 120):
+    b = bounds(parts)
+    pw = b[2] - b[0]
+    ph = b[3] - b[1]
+
+    step = res
+
+    while True:
+        x = b[0]
+        y = b[1]
+
+        print("\033[2J.")
+        vistext(plate, res=res, w=w, h=h)
+        k = readchar.readkey()
+        # TODO ESC
+        if k == "q" or k == readchar.key.ENTER:
+            break
+        elif k == readchar.key.UP:
+            if y + step + ph <= h:
+                y += step
+        elif k == readchar.key.DOWN:
+            if y - step >= 0:
+                y -= step
+        elif k == readchar.key.RIGHT:
+            if x + step + pw <= w:
+                x += step
+        elif k == readchar.key.LEFT:
+            if x - step >= 0:
+                x -= step
+
+        for p in parts:
+            p.x += x - b[0]
+            p.y += y - b[1]
+
+        b = bounds(parts)
+
+
+def platecmds(plate, border, volxyz):
+    w, h = volxyz[0], volxyz[1]
+    res = border
+
+    handlers = {'cx': lambda p: centerx(*p, w=w),
+                'cy': lambda p: centery(*p, h=h),
+                'cxs': lambda: centerstripes(plate.parts, 0, w=w, h=h),
+                'cys': lambda: centerstripes(plate.parts, 1, w=w, h=h),
+                'cas': lambda: autocenterstripes(plate.parts, w=w, h=h),
+                'mv': lambda p: mv(plate, res, *p, w=w, h=h)}
+
     parts = dict([(chr(i+97), part) for i, part in enumerate(plate.parts)])
 
     while True:
-        vistext(plate, res=border)
+        vistext(plate, res=res, w=w, h=h)
         print("cmd> ", end='')
         cmd = input()
         if cmd:
             if cmd == 'q':
                 break
+            elif cmd.startswith('res '):
+                print("current res is: ", res)
+                res = int(cmd.split()[1])
+                print("set res to: ", res)
             else:
                 eval(cmd, handlers, parts)
 
@@ -181,7 +230,7 @@ if __name__ == "__main__":
     packing = PlatesFile.load(args.packing)
 
     for i, plate in enumerate(packing.plates):
-        platecmds(plate, border=packing.border)
+        platecmds(plate, border=packing.border, volxyz=packing.volxyz)
 
     print("save? (y/n)", end='')
     yn = input()
