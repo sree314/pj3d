@@ -7,7 +7,6 @@ import pyrender
 import json
 from pathlib import Path
 import sys
-import numpy as np
 
 if __name__ == "__main__":
     p = argparse.ArgumentParser(description="Visualize packed plates")
