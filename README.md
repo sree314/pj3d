@@ -159,7 +159,7 @@ You can replace `~/.local/bin` with any folder in your `PATH`.
 
 ## Copyright
 
-The contents of this repository are Copyright (C) 2023, Sreepathi Pai.
+The contents of this repository are Copyright (c) 2022, 2023, Sreepathi Pai.
 
 Licensed under the GNU Lesser GPL Public License V3 or later.
 
