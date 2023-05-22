@@ -86,7 +86,7 @@ pj3d test print
 ```
 
 View the Gcode statistics:
-````
+```
 pj3d test gstats
 ```
 
@@ -156,3 +156,10 @@ ln -sf /path/to/Ultimaker-Cura-5.2.2-linux.AppImage ~/.local/bin/CuraEngine
 ```
 
 You can replace `~/.local/bin` with any folder in your `PATH`.
+
+## Copyright
+
+The contents of this repository are Copyright (C) 2023, Sreepathi Pai.
+
+Licensed under the GNU Lesser GPL Public License V3 or later.
+
