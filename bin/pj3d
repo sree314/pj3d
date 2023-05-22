@@ -18,6 +18,7 @@ import re
 
 from plater3d.job import PrintJob
 from plater3d.plate import PlatesFile
+from plater3d.config import Config
 
 def load_job(args, jobname = None):
     jn = jobname or args.jobname
@@ -35,6 +36,8 @@ def load_job(args, jobname = None):
         return None
 
 def create(args):
+    global config
+
     fn = PrintJob.name2file(args.jobname)
     if fn.exists():
         print(f"ERROR: Cannot create job '{args.jobname}', already exists as {fn}", file=sys.stderr)
@@ -42,6 +45,10 @@ def create(args):
 
     if not os.path.exists(args.print_settings):
         print(f"ERROR: Print settings file {args.print_settings} does not exist")
+        return 1
+
+    if config.get_printer_prop(args.machine, 'name', '') == '':
+        print(f"ERROR: No section named {args.machine} in configuration file.")
         return 1
 
     job = PrintJob(args.jobname)
@@ -142,6 +149,8 @@ def ls_models(args):
     return 0
 
 def pack(args):
+    global config
+
     job = load_job(args)
     if job is None: return 1
 
@@ -166,7 +175,10 @@ def pack(args):
     # run packer
     cmds = []
     if args.border: cmds.extend(("-b", args.border))
-    if args.volxyz: cmds.extend(("--volxyz", args.volxyz))
+    volxyz = args.volxyz or config.get_printer_prop(job.machine, 'volxyz')
+    if volxyz:
+        cmds.extend(("--volxyz", volxyz))
+
     if args.plateborder: cmds.extend(("--pb", args.plateborder))
     if not args.no_tight: cmds.append("--tight")
     if args.max_height_diff: cmds.extend(("--max-height-diff", args.max_height_diff))
@@ -178,6 +190,8 @@ def pack(args):
     return 0
 
 def vispack(args):
+    global config
+
     job = load_job(args)
     if job is None: return 1
 
@@ -186,7 +200,13 @@ def vispack(args):
         print(f"ERROR: {op} does not exist. Run pack before visualization", file=sys.stderr)
         return 1
 
-    subprocess.run(['vispackings', str(op)] + args.plates)
+    mesh = config.get_printer_prop(job.machine, 'mesh')
+    if mesh:
+        mesh = ['-m', mesh]
+    else:
+        mesh = []
+
+    subprocess.run(['vispackings', str(op)] + args.plates + mesh)
     return 0
 
 def printplate(args):
@@ -476,6 +496,11 @@ if __name__ == "__main__":
     adjpackp.set_defaults(function=adjpack)
 
     args = p.parse_args()
+    config = Config()
+    if config.configfile.exists():
+        print(f"Using config file: {config.configfile}", file=sys.stderr)
+    else:
+        print(f"WARNING: Configuration file {config.configfile} does not exist.", file=sys.stderr)
 
     if args.command is None:
         p.print_usage()

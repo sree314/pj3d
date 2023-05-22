@@ -13,6 +13,7 @@ if __name__ == "__main__":
     p.add_argument("packing", help='JSON file containing packing info')
     p.add_argument("plates", nargs="*")
     p.add_argument("-p", dest="modelpath", help="Path for object files", default=".")
+    p.add_argument("-m", dest="mesh", help="Mesh file for printer (only STL supported)")
 
     args = p.parse_args()
     root = Path(args.modelpath)
@@ -27,9 +28,8 @@ if __name__ == "__main__":
 
     scene.add_node(nc) # this isn't correct
 
-    CURA_ROOT = Path("/home/sree/cura/squashfs-root/")
-    PRINTER_MESH = CURA_ROOT / "share/cura/resources/meshes/voron0_120_bed.stl"
-    if CURA_ROOT.exists():
+    if args.mesh:
+        PRINTER_MESH = Path(args.mesh)
         if PRINTER_MESH.exists():
             printer = trimesh.load(PRINTER_MESH)
             printer.visual.face_colors = [128, 128, 128, 128]
@@ -39,8 +39,6 @@ if __name__ == "__main__":
             scene.add_node(npm)
         else:
             print(f"WARNING: {PRINTER_MESH} does not exist. No printer mesh loaded.", file=sys.stderr)
-    else:
-        print(f"WARNING: {CURA_ROOT} does not exist. Unable to find printer mesh.", file=sys.stderr)
 
     stlinfo = dict([(i['name'], i) for i in packing["stlinfo"]["files"]])
     visplates = set([int(x) for x in args.plates]) if args.plates else list(range(len(packing["plates"])))
