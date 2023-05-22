@@ -20,6 +20,10 @@ from plater3d.job import PrintJob
 from plater3d.plate import PlatesFile
 from plater3d.config import Config
 
+def configuration(args):
+    global config
+    return 0
+
 def load_job(args, jobname = None):
     jn = jobname or args.jobname
 
@@ -494,6 +498,9 @@ if __name__ == "__main__":
 
     adjpackp = sp.add_parser('adjpack', help='Adjust plate packing manually')
     adjpackp.set_defaults(function=adjpack)
+
+    cfgp = sp.add_parser('config', help='Configuration')
+    cfgp.set_defaults(function=configuration)
 
     args = p.parse_args()
     config = Config()
