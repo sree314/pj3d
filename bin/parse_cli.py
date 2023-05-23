@@ -77,6 +77,10 @@ if __name__ == "__main__":
             p = l.find(marker)
             if p != -1:
                 settings.append(read_settings_log(f, l, p, marker))
+            else:
+                p = l.find("All settings: ")
+                if p != -1:
+                    settings.append(l[p+len("All settings: "):])
 
     if len(settings):
         print(f"Found {len(settings)}, processing last one")
