@@ -67,8 +67,8 @@ if __name__ == "__main__":
     if args.slicer_binary:
         fp = shutil.which(args.slicer_binary)
         if not fp:
-            print("ERROR: {args.slicer_binary} could not be found",
-                  file=sys.stederr)
+            print(f"ERROR: Slicer binary {args.slicer_binary} could not be found",
+                  file=sys.stderr)
             sys.exit(1)
         print(f"Using {fp} as binary", file=sys.stderr)
         args.slicer_binary = fp
@@ -78,11 +78,12 @@ if __name__ == "__main__":
     else:
         raise NotImplementedError(f'Slicer {args.slicer} not implemented')
 
-    slicer_config.load_native_config()
-    if not args.machine in slicer_config._machines:
-        print(f"ERROR: {args.machine} is not a valid machine. Choices: ", file=sys.stderr)
-        print(",".join(slicer_config._machines.keys()))
-        sys.exit(1)
+    if args.appimage:
+        slicer_config.load_native_config()
+        if not args.machine in slicer_config._machines:
+            print(f"ERROR: {args.machine} is not a valid machine. Choices: ", file=sys.stderr)
+            print(",".join(slicer_config._machines.keys()))
+            sys.exit(1)
 
     if args.offxyz is not None and (len(args.offxyz) != len(args.stlfiles)):
         print(f"ERROR: --offxyz ({len(args.offxyz)}) needs to match number of stlfiles ({len(args.stlfiles)})")

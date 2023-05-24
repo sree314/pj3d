@@ -104,7 +104,7 @@ Unix-like systems. You can view the configuration path being used on
 your system using the `config` command:
 
 ```
-pj3d nulljob config
+$ pj3d nulljob config
 Using config file: /path/to/.config/pj3d/pj3d.cfg
 ```
 
@@ -117,8 +117,17 @@ Cura.  The `name` and `mesh` parameters are optional.
 name="Voron 0"
 volxyz=120,120,120
 mesh=/path/to/voron0_120_bed.stl
-
 ```
+
+You can also specify slicer parameters using a section like so:
+```
+[slicer:cura5]
+appimage=true
+binary=/path/to/CuraEngine
+```
+
+By default, `appimage` is `true` on Linux systems, and `false` on other systems. If the path to `CuraEngine` is not provided, then it must be in your `PATH`.
+
 
 ## Creating a print settings file
 

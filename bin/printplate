@@ -14,6 +14,8 @@ from tempfile import TemporaryDirectory
 import os
 import re
 
+from plater3d.config import Config, get_appimage_default
+
 PLATE_SPEC_RE = re.compile(r"(?P<num>\d+)(-(?P<end>\d+))?")
 
 def parse_plate_spec(spec, num_plates):
@@ -101,6 +103,12 @@ if __name__ == "__main__":
 
     args = p.parse_args()
 
+    config = Config()
+    if config.configfile.exists():
+        print(f"Using config file: {config.configfile}", file=sys.stderr)
+    else:
+        print(f"WARNING: Configuration file {config.configfile} does not exist.", file=sys.stderr)
+
     pplog = open(args.logfile, "w")
 
     root = Path(args.modelpath)
@@ -171,7 +179,11 @@ if __name__ == "__main__":
             pos = pos + ["-s", args.settings_file]
 
         output_gcode = f"{args.oprefix}.{pno}.gcode"
-        cmdline = [f'{binpath/"plater3d"}', '--slicer-binary', 'CuraEngine', '--appimage', '-o', output_gcode, "-m", args.machine, "-x", args.extruder] + pos + files
+        appimage = ['--appimage'] if config.get_slicer_prop('cura5', 'appimage',
+                                                            default=get_appimage_default(),
+                                                            type_=bool) else []
+
+        cmdline = [f'{binpath/"plater3d"}', '--slicer-binary', config.get_slicer_prop('cura5', 'binary', default='CuraEngine')] + appimage + ['-o', output_gcode, "-m", args.machine, "-x", args.extruder] + pos + files
 
         if args.no_header_fixup:
             cmdline.append("--no-header-fixup")

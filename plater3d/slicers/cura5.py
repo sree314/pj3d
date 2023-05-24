@@ -113,7 +113,8 @@ class CURA5Config:
                 self._ai.mount()
                 self.installed_resources_root = Path(self._ai.mount_path) / 'share' / 'cura' / 'resources'
         else:
-            raise NotImplementedError(f"Non-AppImage installs not supported")
+            return
+            #raise NotImplementedError(f"Non-AppImage installs not supported")
 
         self._load_all_configs(self.local_share)
         self._load_materials(self.local_share)
@@ -309,7 +310,12 @@ class CURA5Config:
         return out, defjsons
 
     def invoke_slicer(self, machine, extruder_ndx, settings, parts, output, dry_run = False, logfile = None):
-        extruders = self._mac2extruders[machine]
+        if hasattr(self, '_mac2extruders'):
+            extruders = self._mac2extruders[machine]
+        else:
+            # did not load config
+            extruders = [None]*extruder_ndx
+
         kvx = {'machine_extruder_count': len(extruders),
                'adhesion_extruder_nr': extruder_ndx}
 
