@@ -16,6 +16,8 @@ First install the pre-requisites:
 pip3 install -r requirements.txt
 ```
 
+Including `stlinfo`, from [here](https://github.com/sree314/stlinfo)
+
 Then, to install this package, run:
 
 ```
