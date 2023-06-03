@@ -16,15 +16,22 @@ def read_gcode_header(logfile):
     with open(logfile, "r") as f:
         header = []
         in_header = False
-        for l in f:
-            if l.startswith('Gcode header after slicing:'):
-                in_header = True
-                continue
+        pos = -1
 
-            if l.startswith('End of gcode header.'):
+        for l in f:
+            if not in_header:
+                # 5.3 has log lines starting with [
+                pos = l.find('Gcode header after slicing:')
+                if pos != -1:
+                    in_header = True
+                    continue
+
+            if in_header and (l.startswith('End of gcode header.') or (pos > 0 and l.startswith('['))):
+                # 5.3 has log lines starting with [
                 break
 
-            if in_header: header.append(l)
+            if in_header:
+                header.append(l)
 
     return header
 
@@ -135,5 +142,6 @@ if __name__ == "__main__":
         header = read_gcode_header(logfile)
         lines = len(header)
         replacement = ''.join(header).replace('\n', '\\n')
-        subprocess.run(['sed', '-i', f'1,+{lines}c{replacement}', args.output])
+        cmd = ['sed', '-i', f'1,+{lines}c{replacement}', args.output]
+        subprocess.run(cmd)
         print(''.join(header))
