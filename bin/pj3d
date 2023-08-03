@@ -250,6 +250,50 @@ def adjpack(args):
     r = subprocess.run(['adjpacking', op])
     return r.returncode
 
+def redojob(args):
+    job = load_job(args)
+    if job is None: return 1
+    repl = re.compile(r"[^A-Za-z0-9_]") # only characters retained by Cura in object names
+
+    uniques = {}
+    for p in job.fileprops:
+        u = job.fileprops[p].get('unique', None)
+        if u:
+            u = u.upper()
+            u = repl.sub('_', u)
+            assert u not in uniques, u
+            uniques[u] = p
+        else:
+            print(f"ERROR: {p} has no unique name.")
+            return 1
+
+    excluded = re.compile("|".join(uniques.keys())) # shouldn't include any re-specific characters
+
+    redo = []
+    with open(args.exclusionlog, "r") as f:
+        for l in f:
+            m = excluded.search(l)
+            if m:
+                u = m.group(0)
+                redo.append(uniques[u])
+
+    if not len(redo):
+        print("WARNING: No excluded objects found", file=sys.stderr)
+        return 1
+
+    r = subprocess.run(['pj3d', args.newjob, 'createfrom', args.jobname])
+    if r.returncode == 0:
+        print(' '.join(['pj3d', args.newjob, 'add'] + redo))
+        r = subprocess.run(['pj3d', args.newjob, 'add'] + redo)
+
+        if r.returncode == 0:
+            print(f"Created {args.jobname} with {len(args.redo)} parts")
+            return 0
+        else:
+            return 1
+    else:
+        return 1
+
 def printpart(args):
     job = load_job(args)
     if job is None: return 1
@@ -501,6 +545,11 @@ if __name__ == "__main__":
 
     cfgp = sp.add_parser('config', help='Configuration')
     cfgp.set_defaults(function=configuration)
+
+    redop = sp.add_parser('redo', help='Redo excluded parts')
+    redop.add_argument('exclusionlog', help='Text file containing list of excluded objects')
+    redop.add_argument('newjob', help='New job name')
+    redop.set_defaults(function=redojob)
 
     args = p.parse_args()
     config = Config()
