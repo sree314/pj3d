@@ -18,7 +18,7 @@ import re
 
 from plater3d.job import PrintJob
 from plater3d.plate import PlatesFile
-from plater3d.config import Config
+from plater3d.config import Config, get_appimage_default
 
 def configuration(args):
     global config
@@ -295,6 +295,8 @@ def redojob(args):
         return 1
 
 def printpart(args):
+    global config
+    
     job = load_job(args)
     if job is None: return 1
 
@@ -327,8 +329,12 @@ def printpart(args):
     else:
         rotxyz = []
 
+    binary = config.get_slicer_prop('cura5', 'binary', default='CuraEngine')
+    appimage = ['--appimage'] if config.get_slicer_prop('cura5', 'appimage',
+                                                        default=get_appimage_default(),
+                                                        type_=bool) else []
     for part in parts:
-        cmds = ['--slicer-binary', 'CuraEngine', '--appimage']
+        cmds = ['--slicer-binary', binary] + appimage
         cmds.extend(("-s", str(job.print_settings)))
         cmds.extend(("-m", job.machine))
         cmds.extend(("-x", str(job.extruders[0])))
