@@ -287,7 +287,7 @@ def redojob(args):
         r = subprocess.run(['pj3d', args.newjob, 'add'] + redo)
 
         if r.returncode == 0:
-            print(f"Created {args.jobname} with {len(args.redo)} parts")
+            print(f"Created {args.jobname} with {len(redo)} parts")
             return 0
         else:
             return 1
