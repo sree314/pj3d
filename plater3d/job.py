@@ -67,7 +67,7 @@ class PrintJob:
 
             if uniq in seen:
                 dup = 1
-                while f'{dup}_{uniq}' not in seen:
+                while f'{dup}_{uniq}' in seen:
                     dup += 1
 
                 uniq = f'{dup}_{uniq}'
