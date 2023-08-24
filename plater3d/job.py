@@ -22,6 +22,26 @@ class PrintJob:
     def root(self):
         return self.filename.parent
 
+    def move(self, oldpath, newpath):
+        op = Path(oldpath)
+        np = Path(newpath)
+
+        ren = {}
+        for x in self.stlfiles:
+            ren[x] = str(np / Path(x).relative_to(op))
+
+        if len(set(ren.values())) < len(ren):
+            raise ValueError(f"Renaming results in duplicates")
+
+        # TODO: check that renaming doesn't alias onto old name
+
+        self.stlfiles = [ren[x] for x in self.stlfiles]
+        for d in [self.counts, self.fileprops, self.done]:
+            for old, new in ren.items():
+                if old in d:
+                    d[new] = d[old]
+                    del d[old]
+
     def exists(self, stlfile):
         return stlfile in self.counts
 

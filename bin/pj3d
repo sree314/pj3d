@@ -250,6 +250,16 @@ def adjpack(args):
     r = subprocess.run(['adjpacking', op])
     return r.returncode
 
+def mvjob(args):
+    job = load_job(args)
+    if job is None: return 1
+
+    np = Path(args.newpath).absolute()
+    job.move(args.oldpath, np)
+    print(f"Job has been moved from {args.oldpath} to {np}. Run pack, etc. again to complete move.")
+    job.save()
+    return 0
+
 def redojob(args):
     job = load_job(args)
     if job is None: return 1
@@ -296,7 +306,7 @@ def redojob(args):
 
 def printpart(args):
     global config
-    
+
     job = load_job(args)
     if job is None: return 1
 
@@ -556,6 +566,11 @@ if __name__ == "__main__":
     redop.add_argument('exclusionlog', help='Text file containing list of excluded objects')
     redop.add_argument('newjob', help='New job name')
     redop.set_defaults(function=redojob)
+
+    movep = sp.add_parser('mv', help='Change paths when a job is moved from one path to another')
+    movep.add_argument('oldpath', help='Old path')
+    movep.add_argument('newpath', help='New path')
+    movep.set_defaults(function=mvjob)
 
     args = p.parse_args()
     config = Config()
