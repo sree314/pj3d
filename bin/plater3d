@@ -11,6 +11,7 @@ import logging
 from collections import namedtuple
 import tempfile
 import subprocess
+import re
 
 def read_gcode_header(logfile):
     with open(logfile, "r") as f:
@@ -48,6 +49,22 @@ def parse_triple(triple, default='0.0'):
         v[i] = float(v[i]) if v[i] else float(default)
 
     return tuple(v)
+
+def sub_header_variables(header, gcode_file):
+    r = re.compile(r"^;M(IN|AX)(X|Y|Z):[^0-9.]*([0-9.]+)$")
+
+    patches = []
+    for l in header:
+        m = r.match(l)
+        if m:
+            var = "M" + m.group(1) + m.group(2)
+            val = m.group(3)
+            patches.append(("%" + var + "%", val))
+
+    cmds = " ".join([f"s/{p}/{r}/g\n" for p, r in patches])
+    cmd = ['sed', '-i', cmds, gcode_file]
+    print(" ".join(cmd))
+    subprocess.run(cmd)
 
 # temporary
 part = namedtuple('part', 'filename offset rotation')
@@ -145,3 +162,4 @@ if __name__ == "__main__":
         cmd = ['sed', '-i', f'1,+{lines}c{replacement}', args.output]
         subprocess.run(cmd)
         print(''.join(header))
+        sub_header_variables(header, args.output)
