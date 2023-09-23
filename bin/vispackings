@@ -21,7 +21,7 @@ if __name__ == "__main__":
         packing = json.load(fp=f)
 
     volxyz = packing['volxyz']
-    cam = pyrender.OrthographicCamera(1, 1, zfar = 200)
+    cam = pyrender.OrthographicCamera(1, 1, zfar = volxyz[2]+10)
     nc = pyrender.Node(camera=cam, translation=[volxyz[0]//2,volxyz[1]//2,volxyz[2]])
     scene = pyrender.Scene(ambient_light=[0.02, 0.02, 0.02],
                            bg_color=[1.0, 1.0, 1.0])
