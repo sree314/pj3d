@@ -343,6 +343,7 @@ def printpart(args):
     appimage = ['--appimage'] if config.get_slicer_prop('cura5', 'appimage',
                                                         default=get_appimage_default(),
                                                         type_=bool) else []
+
     for part in parts:
         cmds = ['--slicer-binary', binary] + appimage
         cmds.extend(("-s", str(job.print_settings)))
@@ -350,7 +351,7 @@ def printpart(args):
         cmds.extend(("-x", str(job.extruders[0])))
         cmds.append(str(part))
         #TODO: this can be overwritten!
-        cmds.extend(("-o", str(job.root / (part.stem + '.gcode'))))
+        cmds.extend(("-o", str(job.root / (f"{part.stem}{args.suffix}.gcode"))))
         cmds.extend(rotxyz)
 
         r = subprocess.run(['plater3d'] + cmds)
@@ -554,6 +555,7 @@ if __name__ == "__main__":
     printpartp.add_argument('stlfiles', nargs="*", help='STL Files to print')
     printpartp.add_argument("--all", action="store_true", help="Print all parts")
     printpartp.add_argument("--rotxyz", help="Specify rotations for x,y,z for each object")
+    printpartp.add_argument("--suffix", help="Output suffix for GCODE files", default='')
     printpartp.set_defaults(function=printpart)
 
     adjpackp = sp.add_parser('adjpack', help='Adjust plate packing manually')
