@@ -339,6 +339,11 @@ def printpart(args):
     else:
         rotxyz = []
 
+    if args.no_header_fixup:
+        other = ['--no-header-fixup']
+    else:
+        other = []
+
     binary = config.get_slicer_prop('cura5', 'binary', default='CuraEngine')
     appimage = ['--appimage'] if config.get_slicer_prop('cura5', 'appimage',
                                                         default=get_appimage_default(),
@@ -353,6 +358,7 @@ def printpart(args):
         #TODO: this can be overwritten!
         cmds.extend(("-o", str(job.root / (f"{part.stem}{args.suffix}.gcode"))))
         cmds.extend(rotxyz)
+        cmds.extend(other)
 
         r = subprocess.run(['plater3d'] + cmds)
         if r.returncode != 0:
@@ -556,6 +562,8 @@ if __name__ == "__main__":
     printpartp.add_argument("--all", action="store_true", help="Print all parts")
     printpartp.add_argument("--rotxyz", help="Specify rotations for x,y,z for each object")
     printpartp.add_argument("--suffix", help="Output suffix for GCODE files", default='')
+    printpartp.add_argument("--no-header-fixup", help="Do not fixup headers in gcode files", action='store_true')
+
     printpartp.set_defaults(function=printpart)
 
     adjpackp = sp.add_parser('adjpack', help='Adjust plate packing manually')

@@ -157,9 +157,11 @@ if __name__ == "__main__":
 
     if not args.no_header_fixup:
         header = read_gcode_header(logfile)
+        if header[-1] == '\n': header = header[:-1]
         lines = len(header)
         replacement = ''.join(header).replace('\n', '\\n')
-        cmd = ['sed', '-i', f'1,+{lines}c{replacement}', args.output]
+        #TODO: 2 here is to keep FLAVOR
+        cmd = ['sed', '-i', f'2,+{lines}c{replacement}', args.output]
         subprocess.run(cmd)
         print(''.join(header))
         sub_header_variables(header, args.output)
