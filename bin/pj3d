@@ -351,7 +351,7 @@ def printpart(args):
 
     for part in parts:
         cmds = ['--slicer-binary', binary] + appimage
-        cmds.extend(("-s", str(job.print_settings)))
+        cmds.extend(("-s", str(job.root.parent / Path(job.print_settings))))
         cmds.extend(("-m", job.machine))
         cmds.extend(("-x", str(job.extruders[0])))
         cmds.append(str(part))
