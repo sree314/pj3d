@@ -124,7 +124,7 @@ mesh=/path/to/voron0_120_bed.stl
 You can also specify slicer parameters using a section like so:
 ```
 [slicer:cura5]
-appimage=true
+# appimage=true # this usually does not need to be set
 binary=/path/to/CuraEngine
 ```
 
