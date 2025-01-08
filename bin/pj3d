@@ -55,9 +55,16 @@ def create(args):
         print(f"ERROR: No section named {args.machine} in configuration file.")
         return 1
 
+    if args.slicer:
+        if config.get_slicer_prop(args.slicer, 'binary', '') == '':
+            print(f"ERROR: No slicer binary specified named {args.slicer} in configuration file")
+            return 1
+
     job = PrintJob(args.jobname)
     os.mkdir(args.jobname + ".job")
     job.set_print_params(args.machine, args.extruder, args.print_settings)
+    if args.slicer: job.set_slicer(args.slicer)
+
     job.save(fn)
     return 0
 
@@ -103,6 +110,12 @@ def setparams(args):
         print(f"ERROR: Print settings file {args.print_settings} does not exist")
         return 1
 
+    if args.slicer:
+        if config.get_slicer_prop(args.slicer, 'binary', '') == '':
+            print(f"ERROR: No slicer binary specified named {args.slicer} in configuration file")
+            return 1
+
+    if args.slicer: job.set_slicer(args.slicer)
     job.set_print_params(args.machine, args.extruder, args.print_settings)
     job.save()
     return 0
@@ -503,6 +516,7 @@ if __name__ == "__main__":
     sp = p.add_subparsers(dest='command')
 
     cp = sp.add_parser('create', help='Create a new job')
+    cp.add_argument("-s", dest="slicer", help="Set slicer to use")
     cp.add_argument("machine", help="Machine")
     cp.add_argument("print_settings", help="Print settings file to use")
     cp.add_argument("extruder", nargs="?", help="Extruder number", default=0, type=int)
@@ -514,6 +528,7 @@ if __name__ == "__main__":
     cfp.set_defaults(function=createfrom)
 
     setp = sp.add_parser('setparams', help='Set or change parameters of a print job')
+    setp.add_argument("-s", dest="slicer", help="Slicer to use")
     setp.add_argument("machine", help="Machine")
     setp.add_argument("print_settings", help="Print settings file to use")
     setp.add_argument("extruder",  nargs="?", help="Extruder number", default=0, type=int)

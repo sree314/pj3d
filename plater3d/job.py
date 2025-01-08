@@ -3,6 +3,8 @@ import json
 from pathlib import Path
 
 class PrintJob:
+    DEFAULT_SLICER = 'cura5' # backward compatibility
+
     def __init__(self, name):
         self.name = name
         self.stlfiles = []
@@ -12,6 +14,7 @@ class PrintJob:
         self.machine = ''
         self.extruders = [0]
         self.print_settings = ''
+        self.slicer = PrintJob.DEFAULT_SLICER
         self.fileprops = {}
 
     @property
@@ -44,6 +47,9 @@ class PrintJob:
 
     def exists(self, stlfile):
         return stlfile in self.counts
+
+    def set_slicer(self, slicer):
+        self.slicer = slicer
 
     def set_print_params(self, machine, extruder, print_settings):
         self.machine = machine
@@ -116,6 +122,7 @@ class PrintJob:
               'stlfiles': self.stlfiles,
               'counts': self.counts,
               'done': self.done,
+              'slicer': self.slicer,
               'machine': self.machine,
               'extruders': self.extruders,
               'print_settings': self.print_settings,
@@ -139,6 +146,9 @@ class PrintJob:
         pj.set_print_params(op.get('machine',''),
                             op.get('extruders', [0])[0],
                             op.get('print_settings', ''))
+
+
+        pj.set_slicer(op.get('slicer', PrintJob.DEFAULT_SLICER))
 
         if 'done' not in op:
             op['done'] = {}
