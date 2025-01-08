@@ -357,10 +357,11 @@ def printpart(args):
     else:
         other = []
 
-    binary = config.get_slicer_prop('cura5', 'binary', default='CuraEngine')
-    appimage = ['--appimage'] if config.get_slicer_prop('cura5', 'appimage',
-                                                        default=get_appimage_default(),
-                                                        type_=bool) else []
+    slicer = job.slicer
+    binary = config.get_slicer_prop(slicer, 'binary',
+                                    default=PrintJob.DEFAULT_BINARY)
+    appimage = ['--appimage'] if config.get_slicer_prop(slicer, 'appimage',
+                                                        default=get_appimage_default(), type_=bool) else []
 
     for part in parts:
         cmds = ['--slicer-binary', binary] + appimage

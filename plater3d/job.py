@@ -4,6 +4,7 @@ from pathlib import Path
 
 class PrintJob:
     DEFAULT_SLICER = 'cura5' # backward compatibility
+    DEFAULT_BINARY = 'CuraEngine'
 
     def __init__(self, name):
         self.name = name
