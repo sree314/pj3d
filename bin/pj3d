@@ -240,6 +240,7 @@ def printplate(args):
                              x in job.fileprops if 'unique' in job.fileprops[x]])
 
     cmds = []
+    cmds.extend(("--slicer", str(job.slicer)))
     cmds.extend(("-s", str(job.print_settings)))
     cmds.extend(("--op", str(job.root / job.name)))
     cmds.extend(("-m", job.machine))
