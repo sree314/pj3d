@@ -130,6 +130,8 @@ binary=/path/to/CuraEngine
 
 By default, `appimage` is `true` on Linux systems, and `false` on other systems. If the path to `CuraEngine` is not provided, then it must be in your `PATH`.
 
+You can have multiple slicer sections, choosing the appropriate slicer using the `-s` flag to the `pj3d create` command.
+
 
 ## Creating a print settings file
 
@@ -160,7 +162,7 @@ You can use this settings file whenever you run `pj3d create`.
 
 The `pj3d print` command invokes `CuraEngine` to generate `.gcode`
 files from the STL models. If `CuraEngine` does not work, and you're
-using a recent version of Cura (5.2.2 and newer, but newer versions such as 5.7 use a different `AppRun` and won't work anymore), try:
+using a recent version of Cura (5.2.2 and newer, but versions from 5.5 use a different `AppRun` and won't work anymore), try:
 
 ```
 ln -sf /path/to/Ultimaker-Cura-5.2.2-linux.AppImage ~/.local/bin/CuraEngine
@@ -170,7 +172,7 @@ You can replace `~/.local/bin` with any folder in your `PATH`.
 
 ## Copyright
 
-The contents of this repository are Copyright (c) 2022, 2023, 2024, Sreepathi Pai.
+The contents of this repository are Copyright (c) 2022, 2023, 2024, 2025, Sreepathi Pai.
 
 Licensed under the GNU Lesser GPL Public License V3 or later.
 
